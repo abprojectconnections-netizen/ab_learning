@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AB Learning (DEV - Mock)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["--dart-define=ENV=dev"],
+      "deviceId": "chrome"
+    },
+    {
+      "name": "AB Learning (BETA - Firebase)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["--dart-define=ENV=beta"],
+      "deviceId": "chrome"
+    }
+  ]
+}

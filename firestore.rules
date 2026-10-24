@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() ? request.auth.token.get('role', '') : '';
+    }
+
+    function isInstructor() { return role() == 'instructor'; }
+    function isAdmin() { return role() == 'admin' || role() == 'super_admin'; }
+    function isSuperAdmin() { return role() == 'super_admin'; }
+    function ownsCourse(courseId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/courses/$(courseId)).data.instructorId == request.auth.uid;
+    }
+    function hasActiveEnrollment(courseId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseId))
+        && get(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseId)).data.status == 'active';
+    }
+
+    match /users/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.role == 'learner'
+        && request.resource.data.status == 'active'
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'email', 'role', 'status', 'createdAt', 'updatedAt']);
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if false;
+      allow update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoUrl', 'bio', 'updatedAt']);
+      allow delete: if false;
+
+      match /progress/{lessonId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['lessonId', 'courseId', 'completed', 'percentComplete', 'lastPositionSeconds', 'updatedAt'])
+          && request.resource.data.courseId is string
+          && hasActiveEnrollment(request.resource.data.courseId);
+        allow delete: if false;
+      }
+    }
+
+    match /instructor_applications/{applicationId} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['uid', 'displayName', 'experience', 'status', 'createdAt']);
+      allow get, list: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy']);
+      allow delete: if false;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if resource.data.status == 'published'
+        || (signedIn() && request.auth.uid == resource.data.instructorId) || isAdmin();
+      allow create: if isInstructor()
+        && request.resource.data.instructorId == request.auth.uid
+        && request.resource.data.status == 'draft'
+          && request.resource.data.keys().hasOnly(['title', 'description', 'price', 'categoryId', 'instructorId', 'instructorName', 'thumbnailUrl', 'status', 'createdAt', 'updatedAt']);
+      allow update: if (ownsCourse(courseId)
+          && resource.data.status in ['draft', 'rejected']
+          && request.resource.data.instructorId == resource.data.instructorId
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'price', 'categoryId', 'thumbnailUrl', 'updatedAt']))
+        || (ownsCourse(courseId)
+          && resource.data.status == 'draft'
+          && request.resource.data.status == 'pending_review'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
+        || (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'updatedAt'])
+          && request.resource.data.status in ['published', 'rejected', 'archived']);
+      allow delete: if false;
+
+      match /sections/{sectionId} {
+        allow read: if get(/databases/$(database)/documents/courses/$(courseId)).data.status == 'published'
+          || ownsCourse(courseId) || isAdmin();
+        allow create, update: if ownsCourse(courseId)
+          && get(/databases/$(database)/documents/courses/$(courseId)).data.status in ['draft', 'rejected']
+          && request.resource.data.keys().hasOnly(['title', 'order', 'createdAt']);
+        allow delete: if false;
+      }
+
+      match /lessons/{lessonId} {
+        allow read: if isAdmin() || ownsCourse(courseId)
+          || (get(/databases/$(database)/documents/courses/$(courseId)).data.status == 'published'
+            && (resource.data.isPreview == true || hasActiveEnrollment(courseId)));
+        allow create, update: if ownsCourse(courseId)
+          && get(/databases/$(database)/documents/courses/$(courseId)).data.status in ['draft', 'rejected']
+          && request.resource.data.keys().hasOnly(['sectionId', 'title', 'durationSeconds', 'order', 'isPreview', 'videoRef', 'videoProvider', 'videoReference']);
+        allow delete: if false;
+      }
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow read: if (signedIn() && resource.data.studentId == request.auth.uid)
+        || isAdmin();
+      // Client-side enrollment can unlock free courses only. Paid enrollment
+      // activation must be issued by a trusted server after verified payment.
+      allow create: if signedIn()
+        && enrollmentId == request.auth.uid + '_' + request.resource.data.courseId
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.status == 'active'
+        && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.status == 'published'
+        && get(/databases/$(database)/documents/courses/$(request.resource.data.courseId)).data.price == 0
+        && request.resource.data.keys().hasOnly(['studentId', 'courseId', 'status', 'enrolledAt']);
+      allow update, delete: if false;
+    }
+
+    match /payment_mock/{transactionId} {
+      allow read: if signedIn() && resource.data.studentId == request.auth.uid;
+      // The client may create a pending demo transaction; terminal states are
+      // never client writable and this collection must not grant course access.
+      allow create: if signedIn()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['studentId', 'courseId', 'amount', 'currency', 'status', 'createdAt']);
+      allow update, delete: if false;
+    }
+
+    match /course_reviews/{reviewId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.studentId == request.auth.uid
+        && hasActiveEnrollment(request.resource.data.courseId)
+        && request.resource.data.keys().hasOnly(['studentId', 'courseId', 'rating', 'comment', 'createdAt']);
+      allow update, delete: if false;
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isSuperAdmin();
+      allow write: if false;
+    }
+
+    // All unspecified collections and operations are denied by default.
+  }
+}

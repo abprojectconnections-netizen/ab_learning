@@ -1,0 +1,113 @@
+lib/
+├── main.dart
+├── app.dart
+│
+├── core/
+│   ├── config/
+│   │   └── app_config.dart          # Flag: useMockBackend, environment (dev/beta/prod)
+│   ├── theme/
+│   │   ├── app_colors.dart
+│   │   ├── app_text_styles.dart
+│   │   ├── app_spacing.dart
+│   │   └── app_theme.dart
+│   ├── router/
+│   │   ├── app_router.dart          # GoRouter + route definitions
+│   │   ├── route_paths.dart         # ค่าคงที่ของทุก path
+│   │   └── role_guard.dart          # Redirect ตาม Role
+│   └── widgets/                      # Reusable Components (ตาม Design System)
+│       ├── app_button.dart
+│       ├── course_card.dart
+│       ├── video_player_widget.dart
+│       ├── progress_bar.dart
+│       ├── quiz_question_card.dart
+│       ├── app_form_field.dart
+│       ├── app_data_table.dart
+│       ├── app_modal.dart
+│       ├── app_toast.dart
+│       ├── avatar_upload.dart
+│       ├── status_badge.dart
+│       ├── empty_state.dart
+│       ├── error_state.dart
+│       └── certificate_card.dart
+│
+├── features/
+│   ├── auth/                                   # S01
+│   │   ├── data/
+│   │   │   ├── auth_repository.dart            # abstract interface
+│   │   │   ├── mock_auth_repository.dart
+│   │   │   └── firebase_auth_repository.dart
+│   │   ├── domain/user_model.dart
+│   │   └── presentation/
+│   │       ├── providers/auth_providers.dart
+│   │       └── screens/
+│   │           ├── register_screen.dart
+│   │           ├── login_screen.dart
+│   │           └── forgot_password_screen.dart
+│   │
+│   ├── profile/                                # S02
+│   │   └── presentation/screens/
+│   │       ├── profile_view_screen.dart
+│   │       └── profile_edit_screen.dart
+│   │
+│   ├── marketplace/                            # S03
+│   │   ├── data/course_repository.dart
+│   │   └── presentation/screens/
+│   │       ├── course_marketplace_screen.dart
+│   │       └── category_filter_screen.dart
+│   │
+│   ├── course_detail/                          # S04
+│   │   └── presentation/screens/course_detail_screen.dart
+│   │
+│   ├── learning/                                # S05
+│   │   ├── data/progress_repository.dart
+│   │   └── presentation/screens/video_learning_screen.dart
+│   │
+│   ├── quiz/                                    # S06
+│   │   ├── data/quiz_repository.dart
+│   │   └── presentation/screens/
+│   │       ├── quiz_taking_screen.dart
+│   │       └── quiz_result_screen.dart
+│   │
+│   ├── progress/                                # S07
+│   │   └── presentation/screens/progress_dashboard_screen.dart
+│   │
+│   ├── certificate/                             # S08
+│   │   ├── data/certificate_repository.dart
+│   │   └── presentation/screens/
+│   │       ├── my_certificates_screen.dart
+│   │       └── certificate_verify_screen.dart   # public, ไม่ต้อง login
+│   │
+│   ├── search/                                  # S09
+│   │   └── presentation/screens/search_results_screen.dart
+│   │
+│   ├── payment/                                 # S10
+│   │   ├── data/order_repository.dart
+│   │   └── presentation/screens/
+│   │       ├── checkout_screen.dart
+│   │       └── order_status_screen.dart
+│   │
+│   ├── instructor_dashboard/                    # S11
+│   │   └── presentation/screens/instructor_dashboard_screen.dart
+│   │
+│   ├── course_builder/                          # S12
+│   │   └── presentation/screens/
+│   │       ├── course_info_screen.dart
+│   │       └── curriculum_builder_screen.dart
+│   │
+│   ├── video_upload/                            # S13
+│   │   └── presentation/screens/upload_video_screen.dart
+│   │
+│   ├── sales/                                    # S14
+│   │   └── presentation/screens/sales_dashboard_screen.dart
+│   │
+│   └── revenue/                                  # S15
+│       ├── data/payout_repository.dart
+│       └── presentation/screens/
+│           ├── revenue_balance_screen.dart
+│           └── payout_history_screen.dart
+│
+└── shared/
+    └── widgets/shell/
+        ├── guest_shell.dart          # Nav: Home/Explore/Search/Login
+        ├── learner_shell.dart        # Nav: Home/Explore/My Learning/Profile
+        └── instructor_shell.dart     # Nav: Dashboard/Courses/Sales/Revenue
