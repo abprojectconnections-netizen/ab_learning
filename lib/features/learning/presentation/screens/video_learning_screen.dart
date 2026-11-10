@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../marketplace/presentation/providers/course_providers.dart';
-import '../../../../core/state/app_store.dart';
+import '../../../certificate/presentation/providers/certificate_providers.dart';
+import '../../../quiz/presentation/providers/quiz_providers.dart';
+import '../../../video_upload/presentation/providers/video_upload_providers.dart';
+import '../../../enrollment/presentation/providers/enrollment_providers.dart';
+import '../providers/progress_providers.dart';
 import '../../../../core/widgets/error_state.dart';
 import '../../../../core/widgets/video_player_widget.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -18,10 +22,9 @@ class VideoLearningScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final courseAsync = ref.watch(courseByIdProvider(courseId));
-    final appState = ref.watch(appStoreProvider);
-    
-    // ตรวจสอบสิทธิ์การเข้าเรียน (ถ้ายังไม่ซื้อ และไม่ใช่คอร์สฟรี/preview ให้บล็อก)
-    final isEnrolled = appState.enrolledCourseIds.contains(courseId);
+
+    // ตรวจสอบสิทธิ์การเข้าเรียนจาก enrollments ใน Firestore
+    final isEnrolled = ref.watch(isEnrolledProvider(courseId));
 
     return Scaffold(
       appBar: AppBar(title: const Text('ห้องเรียนออนไลน์')),
@@ -37,7 +40,7 @@ class VideoLearningScreen extends ConsumerWidget {
 
           // ถ้ายังไม่ได้ซื้อ และบทเรียนนี้ไม่ใช่ preview -> แสดงสถานะล็อก
           final canWatch = isEnrolled || lecture.isPreview;
-          final currentProgress = appState.courseProgress[courseId] ?? 0.0;
+          final currentProgress = ref.watch(courseCompletionPercentProvider(courseId)).valueOrNull ?? 0.0;
 
           return Row(
             children: [
@@ -48,10 +51,10 @@ class VideoLearningScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      VideoPlayerWidget(
-                        videoUrl: canWatch
-                            ? 'https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4'
-                            : null,
+                      _LessonPlayer(
+                        courseId: courseId,
+                        lessonId: lecture.id,
+                        canWatch: canWatch,
                       ),
                       const SizedBox(height: AppSpacing.md),
                       AppProgressBar(percent: currentProgress),
@@ -62,21 +65,39 @@ class VideoLearningScreen extends ConsumerWidget {
                             AppButton(
                               label: '✓ บันทึกบทเรียนนี้ว่าเรียนจบแล้ว',
                               variant: AppButtonVariant.secondary,
-                              onPressed: () {
-                                // จำลองกดเรียนจบ 1 บท เพิ่ม progress ทีละ 50% (2 บทจบ)
-                                final nextProgress = (currentProgress + 50.0) > 100.0 ? 100.0 : (currentProgress + 50.0);
-                                ref.read(appStoreProvider.notifier).updateProgress(courseId, nextProgress);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('อัปเดตความคืบหน้าเป็น ${nextProgress.toStringAsFixed(0)}%')),
-                                );
+                              onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                try {
+                                  await ref
+                                      .read(progressRepositoryProvider)
+                                      .updateLastWatched(courseId, lecture.id, 100);
+                                  ref.invalidate(courseProgressProvider(courseId));
+                                  final percent = await ref.read(
+                                      courseCompletionPercentProvider(courseId).future);
+                                  // Server decides eligibility (all lessons + quizzes).
+                                  final issued = percent >= 100 &&
+                                      await ref
+                                          .read(certificateRepositoryProvider)
+                                          .claimCertificate(courseId);
+                                  if (issued) ref.invalidate(myCertificatesProvider);
+                                  messenger.showSnackBar(SnackBar(
+                                      content: Text('อัปเดตความคืบหน้าเป็น ${percent.toStringAsFixed(0)}%')));
+                                } catch (_) {
+                                  messenger.showSnackBar(const SnackBar(
+                                      content: Text('บันทึกความคืบหน้าไม่สำเร็จ')));
+                                }
                               },
                             ),
                             const SizedBox(width: AppSpacing.md),
-                            AppButton(
-                              label: 'ทำ Quiz ท้ายบท',
-                              icon: Icons.quiz,
-                              onPressed: () => context.push(RoutePaths.quizTaking.replaceFirst(':courseId', courseId).replaceFirst(':quizId', 'quiz-1')),
-                            ),
+                            if (ref.watch(courseQuizProvider(courseId)).valueOrNull
+                                case final quiz?)
+                              AppButton(
+                                label: 'ทำ Quiz ท้ายบท',
+                                icon: Icons.quiz,
+                                onPressed: () => context.push(RoutePaths.quizTaking
+                                    .replaceFirst(':courseId', courseId)
+                                    .replaceFirst(':quizId', quiz.id)),
+                              ),
                           ],
                         ),
                       ] else ...[
@@ -111,6 +132,40 @@ class VideoLearningScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Resolves a short-lived signed URL (server-checked) for the lesson video.
+class _LessonPlayer extends ConsumerWidget {
+  const _LessonPlayer({
+    required this.courseId,
+    required this.lessonId,
+    required this.canWatch,
+  });
+  final String courseId;
+  final String lessonId;
+  final bool canWatch;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!canWatch) return const VideoPlayerWidget(videoUrl: null);
+    final urlAsync = ref.watch(videoAccessUrlProvider((courseId: courseId, lessonId: lessonId)));
+    return urlAsync.when(
+      loading: () => const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Center(child: Text('โหลดวิดีโอไม่สำเร็จ')),
+      ),
+      data: (url) => url == null
+          ? const AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Center(child: Text('บทเรียนนี้ยังไม่มีวิดีโอ')),
+            )
+          : VideoPlayerWidget(key: ValueKey(url), videoUrl: url),
     );
   }
 }

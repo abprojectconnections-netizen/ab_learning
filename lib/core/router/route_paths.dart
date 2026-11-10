@@ -24,6 +24,8 @@ class RoutePaths {
   static const curriculumBuilder = '/instructor/courses/:courseId/curriculum';
   static const uploadVideo =
       '/instructor/courses/:courseId/lectures/:lectureId/upload';
+  static const quizEditor = '/instructor/courses/:courseId/quiz';
+  static const jobs = '/jobs';
   static const salesDashboard = '/instructor/sales';
   static const revenueBalance = '/instructor/revenue';
   static const payoutHistory = '/instructor/revenue/history';

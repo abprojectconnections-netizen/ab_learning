@@ -16,6 +16,8 @@ import '../../features/profile/presentation/screens/profile_view_screen.dart';
 import '../../features/profile/presentation/screens/profile_edit_screen.dart';
 import '../../features/learning/presentation/screens/video_learning_screen.dart';
 import '../../features/quiz/presentation/screens/quiz_taking_screen.dart';
+import '../../features/quiz/presentation/screens/quiz_editor_screen.dart';
+import '../../features/jobs/presentation/screens/job_board_screen.dart';
 import '../../features/quiz/presentation/screens/quiz_result_screen.dart';
 import '../../features/progress/presentation/screens/progress_dashboard_screen.dart';
 import '../../features/certificate/presentation/screens/my_certificates_screen.dart';
@@ -31,7 +33,7 @@ import '../../features/revenue/presentation/screens/payout_history_screen.dart';
 import '../../features/auth/presentation/screens/role_dashboard_screen.dart';
 
 // ใช้ prefix จริงของ URL (ไม่ใช่ pattern ที่มี :param)
-const _learnerPrefixes = ['/profile', '/my-learning', '/checkout', '/orders'];
+const _learnerPrefixes = ['/profile', '/my-learning', '/checkout', '/orders', '/jobs'];
 const _guestOnly = [
   RoutePaths.login,
   RoutePaths.register,
@@ -52,6 +54,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         '/instructor',
         '/corporate',
         '/employer',
+        '/super-admin',
         '/admin'
       ]) {
         if (path == prefix || path.startsWith('$prefix/')) {
@@ -168,6 +171,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 courseId: s.pathParameters['courseId']!,
                 lectureId: s.pathParameters['lectureId']!),
           ),
+          GoRoute(
+              path: RoutePaths.quizEditor,
+              builder: (c, s) =>
+                  QuizEditorScreen(courseId: s.pathParameters['courseId']!)),
+          GoRoute(
+              path: RoutePaths.jobs, builder: (c, s) => const JobBoardScreen()),
           GoRoute(
               path: RoutePaths.salesDashboard,
               builder: (c, s) => const SalesDashboardScreen()),

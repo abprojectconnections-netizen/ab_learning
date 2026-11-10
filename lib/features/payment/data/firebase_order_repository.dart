@@ -79,6 +79,15 @@ class FirebaseOrderRepository implements OrderRepository {
   }
 
   @override
+  Future<String> startCheckout(String orderId, String returnUrl) async {
+    final response = await _functions
+        .httpsCallable('createCheckoutSession')
+        .call<Map<Object?, Object?>>(
+            {'transactionId': orderId, 'returnUrl': returnUrl});
+    return response.data['url'] as String;
+  }
+
+  @override
   Future<void> confirmMockPayment(String orderId) async {
     await _functions
         .httpsCallable('confirmMockPayment')

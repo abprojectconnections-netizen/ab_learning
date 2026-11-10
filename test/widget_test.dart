@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ab_learning/app.dart';
-import 'package:ab_learning/core/config/app_config.dart';
+import 'support/mock_backend.dart';
 
 void main() {
   testWidgets('AB Learning app renders successfully',
@@ -9,7 +9,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          appConfigProvider.overrideWithValue(AppConfig.dev),
+          ...mockBackendOverrides,
         ],
         child: const ABLearningApp(),
       ),

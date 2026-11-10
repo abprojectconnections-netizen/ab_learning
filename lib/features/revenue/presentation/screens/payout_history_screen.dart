@@ -30,6 +30,7 @@ class PayoutHistoryScreen extends ConsumerWidget {
                 PayoutStatus.pending => StatusKind.pending,
                 PayoutStatus.approved => StatusKind.published,
                 PayoutStatus.paid => StatusKind.paid,
+                PayoutStatus.rejected => StatusKind.failed,
               };
               return Card(
                 child: ListTile(

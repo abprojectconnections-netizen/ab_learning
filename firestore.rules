@@ -22,19 +22,42 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseId)).data.status == 'active';
     }
 
+    // Organization membership docs are keyed {orgId}_{uid} so rules can look
+    // up the caller's own membership without a query.
+    function memberPath(orgId) {
+      return /databases/$(database)/documents/org_members/$(orgId + '_' + request.auth.uid);
+    }
+    function isOrgMember(orgId) {
+      return signedIn() && exists(memberPath(orgId)) && get(memberPath(orgId)).data.status == 'active';
+    }
+    function isOrgStaff(orgId) {
+      return isOrgMember(orgId) && get(memberPath(orgId)).data.role in ['admin', 'manager'];
+    }
+    function isOrgAdmin(orgId) {
+      return isOrgMember(orgId) && get(memberPath(orgId)).data.role == 'admin';
+    }
+
     match /users/{uid} {
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.uid == uid
         && request.resource.data.role == 'learner'
         && request.resource.data.status == 'active'
         && request.resource.data.keys().hasOnly(['uid', 'displayName', 'email', 'role', 'status', 'createdAt', 'updatedAt']);
-      allow get: if signedIn() && request.auth.uid == uid;
-      allow list: if false;
+      allow get: if (signedIn() && request.auth.uid == uid) || isAdmin();
+      allow list: if isAdmin();
       allow update: if signedIn() && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.status == resource.data.status
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoUrl', 'bio', 'updatedAt']);
       allow delete: if false;
+
+      match /notifications/{notificationId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        // Created by Cloud Functions only; the owner may only mark as read.
+        allow update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        allow create, delete: if false;
+      }
 
       match /progress/{lessonId} {
         allow read: if signedIn() && request.auth.uid == uid;
@@ -130,11 +153,122 @@ service cloud.firestore {
 
     match /course_reviews/{reviewId} {
       allow read: if true;
+      // One review per learner per course; name must match the profile.
       allow create: if signedIn()
+        && reviewId == request.auth.uid + '_' + request.resource.data.courseId
         && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.studentName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() <= 1000
         && hasActiveEnrollment(request.resource.data.courseId)
-        && request.resource.data.keys().hasOnly(['studentId', 'courseId', 'rating', 'comment', 'createdAt']);
+        && request.resource.data.keys().hasOnly(['studentId', 'studentName', 'courseId', 'rating', 'comment', 'createdAt']);
       allow update, delete: if false;
+    }
+
+    // Quiz questions never contain answers. Answer keys live in quiz_answers,
+    // which no client can read; grading happens in the submitQuiz function.
+    match /quizzes/{quizId} {
+      allow read: if signedIn()
+        && (hasActiveEnrollment(resource.data.courseId) || ownsCourse(resource.data.courseId) || isAdmin());
+      allow write: if false;
+    }
+
+    match /quiz_answers/{quizId} {
+      allow read, write: if false;
+    }
+
+    match /quiz_attempts/{attemptId} {
+      allow read: if signedIn() && resource.data.studentId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /certificates/{certificateId} {
+      allow read: if signedIn() && resource.data.studentId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Public verification by exact code only; the collection cannot be listed.
+    match /certificate_verifications/{code} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    match /sales/{saleId} {
+      allow read: if signedIn() && (resource.data.instructorId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    match /payouts/{payoutId} {
+      allow read: if signedIn() && (resource.data.instructorId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // platform_config (revenue share, minimum payout) is server-only.
+
+    // ---- Corporate learning ------------------------------------------------
+    match /organizations/{orgId} {
+      allow read: if isOrgMember(orgId) || isAdmin();
+      allow write: if false; // created by the createOrganization function
+    }
+
+    match /org_members/{memberId} {
+      allow read: if signedIn()
+        && (resource.data.uid == request.auth.uid || isOrgStaff(resource.data.orgId) || isAdmin());
+      // Admins of the organization may suspend/reactivate members only.
+      allow update: if isOrgAdmin(resource.data.orgId)
+        && resource.data.role != 'admin'
+        && request.resource.data.status in ['active', 'suspended']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow create, delete: if false; // addOrgMember function
+    }
+
+    match /learning_paths/{pathId} {
+      allow read: if isOrgMember(resource.data.orgId);
+      allow create: if isOrgAdmin(request.resource.data.orgId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status in ['draft', 'active']
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.keys().hasOnly(['orgId', 'title', 'description', 'status', 'createdBy', 'createdAt']);
+      allow update: if isOrgAdmin(resource.data.orgId)
+        && request.resource.data.status in ['draft', 'active', 'archived']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // ---- Recruitment -------------------------------------------------------
+    match /job_postings/{jobId} {
+      allow read: if resource.data.status == 'open'
+        || (signedIn() && resource.data.employerId == request.auth.uid) || isAdmin();
+      allow create: if role() == 'employer'
+        && request.resource.data.employerId == request.auth.uid
+        && request.resource.data.status == 'open'
+        && request.resource.data.title is string && request.resource.data.title.size() > 0
+        && request.resource.data.keys().hasOnly(['employerId', 'title', 'location', 'status', 'createdAt']);
+      allow update: if role() == 'employer' && resource.data.employerId == request.auth.uid
+        && request.resource.data.status in ['open', 'closed']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'location', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /job_applications/{applicationId} {
+      allow read: if signedIn()
+        && (resource.data.candidateId == request.auth.uid || resource.data.employerId == request.auth.uid);
+      // A learner applies to an open posting; the employer is copied from the
+      // posting and the display name must match the applicant's profile.
+      allow create: if signedIn()
+        && applicationId == request.resource.data.jobId + '_' + request.auth.uid
+        && request.resource.data.candidateId == request.auth.uid
+        && request.resource.data.status == 'new'
+        && get(/databases/$(database)/documents/job_postings/$(request.resource.data.jobId)).data.status == 'open'
+        && request.resource.data.employerId == get(/databases/$(database)/documents/job_postings/$(request.resource.data.jobId)).data.employerId
+        && request.resource.data.candidateName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.displayName
+        && request.resource.data.keys().hasOnly(['jobId', 'employerId', 'candidateId', 'candidateName', 'status', 'createdAt']);
+      allow update: if role() == 'employer' && resource.data.employerId == request.auth.uid
+        && request.resource.data.status in ['screened', 'interview', 'offer', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if false;
     }
 
     match /audit_logs/{logId} {

@@ -43,6 +43,13 @@ class ProfileViewScreen extends ConsumerWidget {
               variant: AppButtonVariant.secondary,
               onPressed: () => context.push(RoutePaths.profileEdit),
             ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              label: 'ตำแหน่งงานที่เปิดรับ',
+              icon: Icons.work_outline,
+              variant: AppButtonVariant.secondary,
+              onPressed: () => context.push(RoutePaths.jobs),
+            ),
           ],
         ),
       ),

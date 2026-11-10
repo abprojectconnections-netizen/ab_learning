@@ -1,29 +1,19 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
+import '../../data/notification_repository.dart';
 import '../../domain/notification_model.dart';
 
-class NotificationNotifier extends StateNotifier<List<NotificationItem>> {
-  NotificationNotifier() : super([
-    NotificationItem(
-      id: 'notif-1',
-      title: 'ยินดีต้อนรับสู่ AB Learning',
-      message: 'เริ่มต้นเรียนรู้คอร์สแรกของคุณได้เลยวันนี้',
-      timestamp: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-  ]);
+final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
+  return FirebaseNotificationRepository(
+    firestore: FirebaseFirestore.instance,
+    auth: fb.FirebaseAuth.instance,
+  );
+});
 
-  void addNotification(String title, String message) {
-    state = [
-      NotificationItem(
-        id: 'notif-${DateTime.now().millisecondsSinceEpoch}',
-        title: title,
-        message: message,
-        timestamp: DateTime.now(),
-      ),
-      ...state,
-    ];
-  }
-}
-
-final notificationProvider = StateNotifierProvider<NotificationNotifier, List<NotificationItem>>((ref) {
-  return NotificationNotifier();
+/// Live stream; re-subscribes when the signed-in user changes.
+final notificationProvider = StreamProvider<List<NotificationItem>>((ref) {
+  ref.watch(authStateProvider.select((a) => a.uid));
+  return ref.watch(notificationRepositoryProvider).watchMine();
 });

@@ -1,7 +1,9 @@
 // lib/features/profile/presentation/screens/profile_edit_screen.dart
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/presentation/providers/auth_providers.dart';
+import '../providers/profile_provider.dart';
 import '../../../../core/router/role_guard.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_form_field.dart';
@@ -18,43 +20,113 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   final _nameCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
   bool _saving = false;
+  bool _prefilled = false;
+  bool _uploadingAvatar = false;
+  bool _avatarFailed = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _bioCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อที่แสดง')));
+      return;
+    }
+    final isInstructor = ref.read(authStateProvider).role == UserRole.instructor;
     setState(() => _saving = true);
-    await Future.delayed(const Duration(milliseconds: 500));
-    setState(() => _saving = false);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกสำเร็จ')));
+    try {
+      await ref.read(profileRepositoryProvider).updateMyProfile(
+            displayName: name,
+            bio: isInstructor ? _bioCtrl.text : null,
+          );
+      ref.invalidate(myProfileProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('บันทึกสำเร็จ')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _pickAvatar() async {
+    final picked = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+    final file = picked?.files.single;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null) return;
+    setState(() { _uploadingAvatar = true; _avatarFailed = false; });
+    try {
+      final ext = (file.extension ?? 'jpeg').toLowerCase();
+      await ref.read(profileRepositoryProvider).uploadAvatar(
+          bytes, 'image/${ext == 'jpg' ? 'jpeg' : ext}');
+      ref.invalidate(myProfileProvider);
+    } catch (_) {
+      if (mounted) setState(() => _avatarFailed = true);
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authStateProvider);
     final isInstructor = auth.role == UserRole.instructor;
+    final profile = ref.watch(myProfileProvider);
+
+    profile.whenData((p) {
+      if (_prefilled) return;
+      _prefilled = true;
+      _nameCtrl.text = p.displayName;
+      _bioCtrl.text = p.bio ?? '';
+    });
+
     return Scaffold(
       appBar: AppBar(title: const Text('แก้ไขโปรไฟล์')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          children: [
-            const AvatarUpload(state: AvatarUploadState.empty),
-            const SizedBox(height: AppSpacing.xl),
-            AppFormField(label: 'ชื่อที่แสดง', controller: _nameCtrl),
-            const SizedBox(height: AppSpacing.md),
-            if (isInstructor) ...[
-              AppFormField(label: 'แนะนำตัว (Bio)', controller: _bioCtrl),
-              const SizedBox(height: AppSpacing.md),
-              const AppFormField(label: 'เลขบัญชีธนาคาร (สำหรับถอนเงิน)'),
-            ],
-            const SizedBox(height: AppSpacing.xl),
-            AppButton(
-              label: 'บันทึก',
-              isLoading: _saving,
-              fullWidth: true,
-              onPressed: _saving ? null : _save,
+      body: profile.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(
+                children: [
+                  AvatarUpload(
+                    imageUrl: profile.valueOrNull?.photoUrl,
+                    onTap: _pickAvatar,
+                    state: _uploadingAvatar
+                        ? AvatarUploadState.uploading
+                        : _avatarFailed
+                            ? AvatarUploadState.error
+                            : profile.valueOrNull?.photoUrl != null
+                                ? AvatarUploadState.preview
+                                : AvatarUploadState.empty,
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                  AppFormField(label: 'ชื่อที่แสดง', controller: _nameCtrl),
+                  const SizedBox(height: AppSpacing.md),
+                  if (isInstructor) ...[
+                    AppFormField(label: 'แนะนำตัว (Bio)', controller: _bioCtrl),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+                  const SizedBox(height: AppSpacing.xl),
+                  AppButton(
+                    label: 'บันทึก',
+                    isLoading: _saving,
+                    fullWidth: true,
+                    onPressed: _saving ? null : _save,
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }

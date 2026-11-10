@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/state/app_store.dart';
+import '../providers/certificate_providers.dart';
+import '../../../../core/widgets/error_state.dart';
 import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/certificate_card.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -10,12 +12,16 @@ class MyCertificatesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ดึงใบประกาศจาก Store กลางที่ออกให้อัตโนมัติเมื่อเรียนจบ 100% + Quiz ผ่าน
-    final certs = ref.watch(appStoreProvider).certificates;
+    final certsAsync = ref.watch(myCertificatesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('ใบประกาศนียบัตรของฉัน')),
-      body: certs.isEmpty
+      body: certsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, st) => AppErrorState(
+            message: 'โหลดใบประกาศไม่สำเร็จ',
+            onRetry: () => ref.invalidate(myCertificatesProvider)),
+        data: (certs) => certs.isEmpty
           ? const AppEmptyState(message: 'ยังไม่มีใบประกาศนียบัตร เรียนให้จบคอร์ส 100% และผ่าน Quiz เพื่อรับใบนี้')
           : ListView.builder(
               padding: const EdgeInsets.all(AppSpacing.lg),
@@ -30,15 +36,20 @@ class MyCertificatesScreen extends ConsumerWidget {
                     issuedAt: cert.issuedAt,
                     verificationCode: cert.verificationCode,
                     state: CertificateCardState.ready,
-                    onDownload: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('จำลองการดาวน์โหลดไฟล์ PDF สำเร็จ')),
-                      );
+                    // PDF export is not implemented; share the verifiable code.
+                    onDownload: () async {
+                      await Clipboard.setData(ClipboardData(text: cert.verificationCode));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('คัดลอกรหัสตรวจสอบแล้ว')),
+                        );
+                      }
                     },
                   ),
                 );
               },
             ),
+      ),
     );
   }
 }

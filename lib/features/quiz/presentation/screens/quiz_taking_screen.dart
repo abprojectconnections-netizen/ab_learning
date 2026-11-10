@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../domain/quiz_model.dart';
 import '../providers/quiz_providers.dart';
-import '../../../../core/state/app_store.dart';
+import '../../../certificate/presentation/providers/certificate_providers.dart';
 import '../../../../core/widgets/error_state.dart';
 import '../../../../core/widgets/quiz_question_card.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -28,25 +27,25 @@ class _QuizTakingScreenState extends ConsumerState<QuizTakingScreen> {
 
   Future<void> _submit() async {
     setState(() => _submitting = true);
-    
-    // ตรวจคำตอบแบบจำลอง (ถ้าตอบข้อแรกถูก ให้ได้คะแนน 100%)
-    // สมมติข้อ 1 correctIndex = 0
-    int correctCount = 0;
-    const totalQ = 2; // อิงตาม Mock Quiz มี 2 ข้อ
-    
-    if (_answers['q1'] == 0) correctCount++;
-    if (_answers['q2'] == 1) correctCount++;
-    
-    final scorePercent = ((correctCount / totalQ) * 100).round();
-
-    // บันทึกผลสอบลง AppStore กลาง
-    final passed = ref.read(appStoreProvider.notifier).submitQuizAndCheck(widget.courseId, scorePercent);
-
-    ref.read(lastQuizResultProvider.notifier).state = QuizResult(scorePercent: scorePercent, passed: passed);
-
-    await Future.delayed(const Duration(milliseconds: 400));
-    if (mounted) {
-      context.go(RoutePaths.quizResult.replaceFirst(':courseId', widget.courseId).replaceFirst(':quizId', widget.quizId));
+    try {
+      // Graded on the server (submitQuiz callable); the client never sees
+      // the answer key.
+      final result = await ref
+          .read(quizRepositoryProvider)
+          .submitQuiz(widget.quizId, _answers);
+      ref.read(lastQuizResultProvider.notifier).state = result;
+      ref.invalidate(myCertificatesProvider);
+      if (mounted) {
+        context.go(RoutePaths.quizResult
+            .replaceFirst(':courseId', widget.courseId)
+            .replaceFirst(':quizId', widget.quizId));
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ส่งคำตอบไม่สำเร็จ กรุณาลองใหม่')));
+      }
     }
   }
 

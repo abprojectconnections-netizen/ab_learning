@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/auth_repository.dart';
-import '../../data/mock_auth_repository.dart';
 import '../../data/firebase_auth_repository.dart';
 import '../../domain/user_model.dart';
-import '../../../../core/config/app_config.dart';
 import '../../../../core/router/role_guard.dart';
 
 UserRole guardRoleFor(UserRoleType role) => switch (role) {
@@ -20,11 +18,8 @@ UserRole guardRoleFor(UserRoleType role) => switch (role) {
     };
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final config = ref.watch(appConfigProvider);
-  return config.useMockBackend
-      ? MockAuthRepository()
-      : FirebaseAuthRepository(
-          fb.FirebaseAuth.instance, FirebaseFirestore.instance);
+  return FirebaseAuthRepository(
+      fb.FirebaseAuth.instance, FirebaseFirestore.instance);
 });
 
 final authStateStreamProvider = StreamProvider<AppUser?>((ref) {

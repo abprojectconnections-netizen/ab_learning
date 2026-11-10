@@ -74,6 +74,26 @@ async function main() {
       videoReference: 'demo-video',
     });
   }
+  // Quiz content, server-only answer key and revenue config (DEV seed only).
+  const quizRef = db.collection('quizzes').doc('dev-flutter-basics-quiz');
+  if (!(await quizRef.get()).exists) {
+    await quizRef.set({
+      courseId: 'dev-flutter-basics',
+      lectureId: 'lesson-2',
+      title: 'แบบทดสอบ Flutter พื้นฐาน',
+      passThresholdPercent: 70,
+      questions: [
+        { id: 'q1', text: 'Flutter ใช้ภาษาอะไร?', options: ['Dart', 'Java', 'Swift', 'Kotlin'] },
+        { id: 'q2', text: 'Firebase คืออะไร?', options: ['Database อย่างเดียว', 'Backend-as-a-Service', 'Framework UI', 'ภาษาโปรแกรม'] },
+      ],
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    await db.collection('quiz_answers').doc(quizRef.id).set({ answers: { q1: 0, q2: 1 } });
+  }
+  const revenueRef = db.collection('platform_config').doc('revenue');
+  if (!(await revenueRef.get()).exists) {
+    await revenueRef.set({ instructorShare: 0.7, minPayout: 1000 });
+  }
   process.stdout.write('Seeded DEV categories and sample published courses.\n');
 }
 

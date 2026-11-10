@@ -1,10 +1,13 @@
 // lib/features/payment/presentation/screens/checkout_screen.dart
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../marketplace/presentation/providers/course_providers.dart';
 import '../providers/order_providers.dart';
-import '../../../../core/state/app_store.dart';
+import '../../../enrollment/presentation/providers/enrollment_providers.dart';
 import '../../../../core/widgets/error_state.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/router/route_paths.dart';
@@ -18,24 +21,55 @@ class CheckoutScreen extends ConsumerStatefulWidget {
   ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
 }
 
-enum PaymentMethod { mock, transfer }
+enum PaymentMethod { card, mock }
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
-  PaymentMethod _method = PaymentMethod.mock;
+  PaymentMethod _method = PaymentMethod.card;
   bool _processing = false;
 
   Future<void> _confirmOrder(double amount) async {
     setState(() => _processing = true);
-    final orderId = await ref
-        .read(orderRepositoryProvider)
-        .createOrder(widget.courseId, amount);
-    if (_method == PaymentMethod.mock) {
-      await ref.read(orderRepositoryProvider).confirmMockPayment(orderId);
-      // ⭐ ปลดล็อกคอร์สเข้าสู่ AppStore กลางทันที
-      ref.read(appStoreProvider.notifier).enrollCourse(widget.courseId);
-    }
-    if (mounted) {
-      context.go(RoutePaths.orderStatus.replaceFirst(':orderId', orderId));
+    try {
+      if (amount == 0) {
+        // Free course: rules allow client-side enrollment for price == 0 only.
+        await ref
+            .read(enrollmentRepositoryProvider)
+            .enrollFreeCourse(widget.courseId);
+        if (mounted) {
+          context.go(RoutePaths.courseDetail
+              .replaceFirst(':courseId', widget.courseId));
+        }
+        return;
+      }
+      final orders = ref.read(orderRepositoryProvider);
+      final orderId = await orders.createOrder(widget.courseId, amount);
+      final statusPath =
+          RoutePaths.orderStatus.replaceFirst(':orderId', orderId);
+      if (_method == PaymentMethod.mock) {
+        // DEV project only: the callable activates the enrollment server-side.
+        await orders.confirmMockPayment(orderId);
+      } else {
+        // Hosted Stripe Checkout; the signed webhook activates the enrollment.
+        const appUrl = String.fromEnvironment('WEB_APP_URL');
+        final returnUrl = kIsWeb
+            ? '${Uri.base.origin}${Uri.base.path}#$statusPath'
+            : '$appUrl/#$statusPath';
+        final checkoutUrl = await orders.startCheckout(orderId, returnUrl);
+        final launched = await launchUrl(Uri.parse(checkoutUrl),
+            webOnlyWindowName: '_self');
+        if (!launched) throw StateError('Could not open the payment page.');
+        return;
+      }
+      if (mounted) {
+        context.go(statusPath);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ทำรายการไม่สำเร็จ กรุณาลองใหม่')));
+      }
+    } finally {
+      if (mounted) setState(() => _processing = false);
     }
   }
 
@@ -69,28 +103,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       setState(() => _method = value);
                     }
                   },
-                  child: const Column(
+                  child: Column(
                     children: [
-                      RadioListTile<PaymentMethod>(
-                        value: PaymentMethod.mock,
-                        title: Text('Mock payment (Demo)'),
+                      const RadioListTile<PaymentMethod>(
+                        value: PaymentMethod.card,
+                        title: Text('บัตรเครดิต/เดบิต / PromptPay (Stripe)'),
                       ),
-                      RadioListTile<PaymentMethod>(
-                        value: PaymentMethod.transfer,
-                        title: Text('Bank transfer + receipt'),
-                      ),
+                      if (ref.watch(appConfigProvider).environment ==
+                          AppEnvironment.dev)
+                        const RadioListTile<PaymentMethod>(
+                          value: PaymentMethod.mock,
+                          title: Text('Mock payment (DEV เท่านั้น)'),
+                        ),
                     ],
                   ),
                 ),
-                if (_method == PaymentMethod.transfer) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: 'แนบสลิปการโอนเงิน',
-                    icon: Icons.attach_file,
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () {},
-                  ),
-                ],
                 const Spacer(),
                 AppButton(
                   label: 'ยืนยันคำสั่งซื้อ',

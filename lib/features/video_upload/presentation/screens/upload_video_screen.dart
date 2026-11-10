@@ -1,29 +1,66 @@
 // lib/features/video_upload/presentation/screens/upload_video_screen.dart
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/video_upload_repository.dart';
+import '../providers/video_upload_providers.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
-class UploadVideoScreen extends StatefulWidget {
+class UploadVideoScreen extends ConsumerStatefulWidget {
   final String courseId;
   final String lectureId;
   const UploadVideoScreen({super.key, required this.courseId, required this.lectureId});
   @override
-  State<UploadVideoScreen> createState() => _UploadVideoScreenState();
+  ConsumerState<UploadVideoScreen> createState() => _UploadVideoScreenState();
 }
 
-class _UploadVideoScreenState extends State<UploadVideoScreen> {
+class _UploadVideoScreenState extends ConsumerState<UploadVideoScreen> {
   double _progress = 0;
   bool _uploading = false;
   bool _isPreview = false;
+  String? _message;
 
   Future<void> _pickAndUpload() async {
-    setState(() { _uploading = true; _progress = 0; });
-    for (var i = 1; i <= 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 200));
-      setState(() => _progress = i / 10);
+    final picked = await FilePicker.platform.pickFiles(type: FileType.video, withData: true);
+    final file = picked?.files.single;
+    final bytes = file?.bytes;
+    if (file == null || bytes == null) return;
+    if (bytes.length >= kMaxVideoBytes) {
+      setState(() => _message = 'ไฟล์ใหญ่เกิน 500 MB');
+      return;
     }
-    setState(() => _uploading = false);
+    setState(() { _uploading = true; _progress = 0; _message = null; });
+    try {
+      final ext = (file.extension ?? 'mp4').toLowerCase();
+      await for (final p in ref.read(videoUploadRepositoryProvider).uploadLessonVideo(
+            courseId: widget.courseId,
+            lessonId: widget.lectureId,
+            bytes: bytes,
+            contentType: ext == 'mov' ? 'video/quicktime' : 'video/$ext',
+          )) {
+        if (mounted) setState(() => _progress = p.fraction);
+      }
+      if (mounted) setState(() => _message = 'อัปโหลดสำเร็จ');
+    } catch (_) {
+      if (mounted) setState(() => _message = 'อัปโหลดไม่สำเร็จ (คอร์สต้องอยู่ในสถานะแบบร่าง)');
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _togglePreview(bool value) async {
+    setState(() => _isPreview = value);
+    try {
+      await ref
+          .read(videoUploadRepositoryProvider)
+          .setPreview(widget.courseId, widget.lectureId, value);
+    } catch (_) {
+      if (mounted) {
+        setState(() { _isPreview = !value; _message = 'ตั้งค่า Preview ไม่สำเร็จ'; });
+      }
+    }
   }
 
   @override
@@ -39,11 +76,11 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               child: Container(
                 height: 160,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey, style: BorderStyle.solid),
+                  border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
-                  child: Text(_uploading ? 'กำลังอัปโหลด...' : 'ลากไฟล์มาวาง หรือ กดเพื่อเลือกไฟล์', style: AppTextStyles.bodyMedium),
+                  child: Text(_uploading ? 'กำลังอัปโหลด...' : 'กดเพื่อเลือกไฟล์วิดีโอ (ไม่เกิน 500 MB)', style: AppTextStyles.bodyMedium),
                 ),
               ),
             ),
@@ -53,16 +90,17 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               const SizedBox(height: AppSpacing.sm),
               Text('${(_progress * 100).toStringAsFixed(0)}%', style: AppTextStyles.caption),
             ],
+            if (_message != null) Text(_message!, style: AppTextStyles.caption),
             CheckboxListTile(
               value: _isPreview,
-              onChanged: (v) => setState(() => _isPreview = v ?? false),
+              onChanged: _uploading ? null : (v) => _togglePreview(v ?? false),
               title: const Text('ตั้งเป็น Preview ฟรี'),
             ),
             const Spacer(),
             AppButton(
               label: 'เสร็จสิ้น',
               fullWidth: true,
-              onPressed: () => Navigator.pop(context),
+              onPressed: _uploading ? null : () => Navigator.pop(context),
             ),
           ],
         ),

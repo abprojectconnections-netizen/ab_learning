@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../auth/presentation/providers/auth_providers.dart';
 import '../../../marketplace/presentation/providers/course_providers.dart';
 import '../../../../core/widgets/error_state.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -14,7 +15,7 @@ class InstructorDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const instructorId = 'instructor-1';
+    final instructorId = ref.watch(authStateProvider).uid ?? '';
     final coursesAsync = ref.watch(instructorCoursesProvider(instructorId));
     return Scaffold(
       appBar: AppBar(title: const Text('แดชบอร์ดผู้สอน')),

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ab_learning/features/auth/data/mock_auth_repository.dart';
+import 'support/mock_backend.dart';
 import 'package:ab_learning/features/auth/domain/user_model.dart';
 
 void main() {

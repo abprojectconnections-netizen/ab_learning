@@ -35,6 +35,13 @@ class CurriculumBuilderScreen extends ConsumerWidget {
                       variant: AppButtonVariant.secondary,
                       onPressed: () => ref.read(courseRepositoryProvider).addSection(courseId, 'Section ใหม่'),
                     ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppButton(
+                      label: 'จัดการแบบทดสอบ',
+                      icon: Icons.quiz_outlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () => context.push(RoutePaths.quizEditor.replaceFirst(':courseId', courseId)),
+                    ),
                     const SizedBox(height: AppSpacing.md),
                     ...sections.map((s) => Card(
                           child: ExpansionTile(

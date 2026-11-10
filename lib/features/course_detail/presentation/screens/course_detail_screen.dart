@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../marketplace/presentation/providers/course_providers.dart';
-import '../../../../core/state/app_store.dart';
+import '../../../enrollment/presentation/providers/enrollment_providers.dart';
 import '../../../../core/widgets/error_state.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/router/route_paths.dart';
@@ -18,8 +18,7 @@ class CourseDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final courseAsync = ref.watch(courseByIdProvider(courseId));
-    final appState = ref.watch(appStoreProvider);
-    final isEnrolled = appState.enrolledCourseIds.contains(courseId);
+    final isEnrolled = ref.watch(isEnrolledProvider(courseId));
 
     return Scaffold(
       backgroundColor: AppColors.gray50,

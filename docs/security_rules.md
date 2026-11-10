@@ -10,12 +10,16 @@ Security properties enforced in the starter rules:
 - Learners read/write only their own progress and need an active enrollment.
 - An active client enrollment is possible only for a published zero-price course.
 - Payment mock writes can only be pending; the client cannot mark payment successful or unlock a paid course.
+- Quiz answer keys, attempts, certificates, sales, payouts and notifications are server-written; clients can only read their own (and mark notifications read).
+- Instructors author quizzes only through `saveQuiz` (validates ownership, draft status and input; writes the answer key server-side) and read their own key through `getQuizForEditing`.
+- Learners apply to jobs by creating `job_applications/{jobId_uid}`; rules verify the posting is open, copy the employer from the posting and match the display name to the profile.
+- Quizzes are graded and certificates issued only by Cloud Functions (`submitQuiz`, `claimCertificate`); payouts are created only by `requestPayout`, which validates the balance in a transaction.
 - Audit records cannot be written by clients and are visible only to super admins.
 
 Custom claims must be assigned using Firebase Admin SDK in a trusted, access-controlled server process. Never put a service-account key in Flutter or grant claims from a client callable without verifying the actor's authority. Route guards do not replace these rules.
 
 ## Emulator checks
 
-The Firebase Emulator Suite configuration is in `firebase.json`. Run `firebase emulators:exec --only firestore --project demo-ab-learning "npm test --prefix rules-tests"` to execute the allow/deny suite against a local demo project. Do not use production data for rule experiments.
+The Firebase Emulator Suite configuration is in `firebase.json`. Run `firebase emulators:exec --only firestore,storage --project demo-ab-learning "npm test --prefix rules-tests"` to execute the allow/deny suite against a local demo project. Do not use production data for rule experiments.
 
 Rules are not considered production-verified until emulator tests cover allowed and denied cases for each role, including cross-user reads, cross-instructor writes, paid-course enrollment, and client payment-success forgery.

@@ -26,9 +26,21 @@ class QuizResultScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             Text('${result.scorePercent}%', style: Theme.of(context).textTheme.headlineMedium),
             Text(result.passed ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์ ลองใหม่อีกครั้ง'),
+            if (result.certificateIssued)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('คุณได้รับใบประกาศนียบัตรแล้ว'),
+              ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () => context.go(RoutePaths.videoLearning.replaceFirst(':courseId', courseId).replaceFirst(':lectureId', 'l2')),
+              onPressed: () {
+                final lectureId = ref.read(quizByIdProvider(quizId)).valueOrNull?.lectureId;
+                context.go(lectureId == null || lectureId.isEmpty
+                    ? RoutePaths.courseDetail.replaceFirst(':courseId', courseId)
+                    : RoutePaths.videoLearning
+                        .replaceFirst(':courseId', courseId)
+                        .replaceFirst(':lectureId', lectureId));
+              },
               child: const Text('กลับไปเรียนต่อ'),
             ),
           ],

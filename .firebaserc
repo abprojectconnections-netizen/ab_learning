@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "absmart-350e5"
-  }
+    "default": "absmart-350e5",
+    "Bas-travel/tutor": "absmart-350e5"
+  },
+  "targets": {},
+  "etags": {}
 }

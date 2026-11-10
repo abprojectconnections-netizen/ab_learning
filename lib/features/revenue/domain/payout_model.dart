@@ -1,5 +1,21 @@
 // lib/features/revenue/domain/payout_model.dart
-enum PayoutStatus { pending, approved, paid }
+enum PayoutStatus { pending, approved, paid, rejected }
+
+/// Server-computed revenue summary (see getRevenueSummary function).
+class RevenueSummary {
+  final double gross;
+  final double earned;
+  final double reserved;
+  final double balance;
+  final double minPayout;
+  const RevenueSummary({
+    required this.gross,
+    required this.earned,
+    required this.reserved,
+    required this.balance,
+    required this.minPayout,
+  });
+}
 
 class PayoutModel {
   final String id;

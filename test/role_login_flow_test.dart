@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ab_learning/core/config/app_config.dart';
+import 'support/mock_backend.dart';
 import 'package:ab_learning/core/router/app_router.dart';
 import 'package:ab_learning/features/auth/presentation/screens/role_dashboard_screen.dart';
 import 'package:ab_learning/features/instructor_dashboard/presentation/screens/instructor_dashboard_screen.dart';
@@ -22,7 +22,7 @@ void main() {
     testWidgets('login routes ${account.email} to the correct role',
         (tester) async {
       final container = ProviderContainer(
-        overrides: [appConfigProvider.overrideWithValue(AppConfig.dev)],
+        overrides: mockBackendOverrides,
       );
       final router = container.read(appRouterProvider)..go('/login');
       await tester.pumpWidget(

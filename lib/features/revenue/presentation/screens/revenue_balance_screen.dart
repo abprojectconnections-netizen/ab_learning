@@ -9,8 +9,6 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
-const kMinPayoutAmount = 1000.0;
-
 class RevenueBalanceScreen extends ConsumerStatefulWidget {
   const RevenueBalanceScreen({super.key});
   @override
@@ -22,15 +20,23 @@ class _RevenueBalanceScreenState extends ConsumerState<RevenueBalanceScreen> {
 
   Future<void> _requestPayout(double balance) async {
     setState(() => _requesting = true);
-    await ref.read(payoutRepositoryProvider).requestPayout(balance);
-    setState(() => _requesting = false);
-    ref.invalidate(balanceProvider);
-    ref.invalidate(payoutHistoryProvider);
+    try {
+      await ref.read(payoutRepositoryProvider).requestPayout(balance);
+      ref.invalidate(revenueSummaryProvider);
+      ref.invalidate(payoutHistoryProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ขอถอนเงินไม่สำเร็จ กรุณาลองใหม่')));
+      }
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final balanceAsync = ref.watch(balanceProvider);
+    final balanceAsync = ref.watch(revenueSummaryProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('รายได้'),
@@ -38,9 +44,11 @@ class _RevenueBalanceScreenState extends ConsumerState<RevenueBalanceScreen> {
       ),
       body: balanceAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => AppErrorState(message: 'โหลดยอดเงินไม่สำเร็จ', onRetry: () => ref.invalidate(balanceProvider)),
-        data: (balance) {
-          final canWithdraw = balance >= kMinPayoutAmount;
+        error: (e, st) => AppErrorState(message: 'โหลดยอดเงินไม่สำเร็จ', onRetry: () => ref.invalidate(revenueSummaryProvider)),
+        data: (summary) {
+          final balance = summary.balance;
+          final minPayout = summary.minPayout;
+          final canWithdraw = balance >= minPayout;
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(AppSpacing.xl),
@@ -52,7 +60,7 @@ class _RevenueBalanceScreenState extends ConsumerState<RevenueBalanceScreen> {
                   Text('฿${balance.toStringAsFixed(0)}', style: AppTextStyles.h1),
                   const SizedBox(height: AppSpacing.xl),
                   Tooltip(
-                    message: canWithdraw ? '' : 'ยอดขั้นต่ำในการถอน ฿${kMinPayoutAmount.toStringAsFixed(0)}',
+                    message: canWithdraw ? '' : 'ยอดขั้นต่ำในการถอน ฿${minPayout.toStringAsFixed(0)}',
                     child: AppButton(
                       label: 'ขอถอนเงิน',
                       isLoading: _requesting,
@@ -60,7 +68,7 @@ class _RevenueBalanceScreenState extends ConsumerState<RevenueBalanceScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Text('ขั้นต่ำ ฿${kMinPayoutAmount.toStringAsFixed(0)}', style: AppTextStyles.caption),
+                  Text('ขั้นต่ำ ฿${minPayout.toStringAsFixed(0)}', style: AppTextStyles.caption),
                 ],
               ),
             ),

@@ -2,13 +2,16 @@
   "name": "ab-learning-functions",
   "private": true,
   "main": "index.js",
-  "engines": { "node": "22" },
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
     "lint": "node --check index.js && node --check bootstrap_superadmin.js && node --check seed_dev_data.js",
     "seed:dev": "node seed_dev_data.js"
   },
   "dependencies": {
     "firebase-admin": "^14.5.0",
-    "firebase-functions": "^7.4.0"
+    "firebase-functions": "^7.4.0",
+    "stripe": "^17.7.0"
   }
 }
