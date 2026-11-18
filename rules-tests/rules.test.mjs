@@ -314,6 +314,7 @@ test('admins can list users; learners cannot', async () => {
 });
 
 test('job board: open postings can be listed by query; duplicate applications are blocked by id', async () => {
+  await environment.clearFirestore(); // earlier tests leave open postings behind
   await seed({
     'users/cand-2': { uid: 'cand-2', displayName: 'Cand Two', role: 'learner', status: 'active' },
     'job_postings/open1': { employerId: 'emp-1', title: 'A', location: 'BKK', status: 'open', createdAt: new Date() },

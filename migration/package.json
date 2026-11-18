@@ -1,0 +1,13 @@
+{
+  "name": "ab-learning-migration",
+  "private": true,
+  "engines": { "node": "22" },
+  "scripts": {
+    "dry-run": "node migrate.js",
+    "commit": "node migrate.js --commit"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0",
+    "mysql2": "^3.11.0"
+  }
+}

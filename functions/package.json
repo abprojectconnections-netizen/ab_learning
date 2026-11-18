@@ -6,8 +6,9 @@
     "node": "22"
   },
   "scripts": {
-    "lint": "node --check index.js && node --check bootstrap_superadmin.js && node --check seed_dev_data.js",
-    "seed:dev": "node seed_dev_data.js"
+    "lint": "node --check index.js && node --check bootstrap_superadmin.js && node --check seed_dev_data.js && node --check seed_dev_users.js",
+    "seed:dev": "node seed_dev_data.js",
+    "seed:users": "node seed_dev_users.js"
   },
   "dependencies": {
     "firebase-admin": "^14.5.0",
