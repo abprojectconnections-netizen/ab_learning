@@ -291,6 +291,16 @@ class MockEnrollmentRepository implements EnrollmentRepository {
 }
 
 class MockProfileRepository implements ProfileRepository {
+  bool deleted = false;
+  String? deletionBlockedReason;
+
+  @override
+  Future<void> deleteMyAccount() async {
+    final reason = deletionBlockedReason;
+    if (reason != null) throw AccountDeletionBlocked(reason);
+    deleted = true;
+  }
+
   @override
   Future<String> uploadAvatar(Uint8List bytes, String contentType) async =>
       'https://example.test/avatar.png';

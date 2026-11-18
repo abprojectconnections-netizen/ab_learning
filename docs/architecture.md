@@ -5,7 +5,7 @@
 - Flutter + Dart targets Web, Android, and iOS.
 - Riverpod is the state and dependency layer; `go_router` owns navigation.
 - Feature-first modules separate presentation from repositories.
-- Development currently uses in-memory/mock repositories. Firebase packages are present, but no FlutterFire project configuration is checked in and `main.dart` deliberately refuses non-dev environments.
+- Every feature talks to live Firebase (Auth, Firestore, Storage, Cloud Functions) through repositories. Firebase options are supplied at build time with `--dart-define` (`lib/core/config/firebase_options.dart`); mock repositories live only in `test/support` and are injected by provider overrides in tests.
 - The app supports learner, instructor, corporate admin, corporate manager, employer, admin, and super admin roles. The four-role learning platform in the product plan is the core; the three business roles remain supported as additional workspaces.
 
 ## Intended Firebase boundary
@@ -22,7 +22,7 @@ Repositories own serialization and queries. Widgets must not issue Firestore que
 | Instructor | Own drafts, lessons, and submission for review | Rules verify `instructorId` and allowed status transitions |
 | Admin | Review instructor applications and course status | Admin custom claim; role grants must be issued by a trusted server |
 | Super Admin | Read audit records and system role directory | Role changes and audit writes are server-only |
-| Corporate Admin / Manager, Employer | Demo workspaces in current MVP | Organization and recruitment data collections are not yet provisioned; deny by default |
+| Corporate Admin / Manager, Employer | Organizations, members, learning paths, job postings and applications | Tenant-scoped rules via `org_members`; employers manage only their own postings |
 
 ## Environment separation
 

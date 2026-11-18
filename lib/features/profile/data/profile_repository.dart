@@ -1,6 +1,7 @@
 // lib/features/profile/data/profile_repository.dart
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
@@ -34,19 +35,33 @@ abstract class ProfileRepository {
   /// Uploads to avatars/{uid} (images up to 5 MB), stores the download URL in
   /// the profile and returns it.
   Future<String> uploadAvatar(Uint8List bytes, String contentType);
+
+  /// Permanently deletes the account and personal data (server side). Throws
+  /// [AccountDeletionBlocked] when it cannot be done, e.g. the user still owns courses.
+  Future<void> deleteMyAccount();
+}
+
+class AccountDeletionBlocked implements Exception {
+  const AccountDeletionBlocked(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }
 class FirebaseProfileRepository implements ProfileRepository {
   FirebaseProfileRepository({
     required FirebaseFirestore firestore,
     required FirebaseAuth auth,
     required FirebaseStorage storage,
+    required FirebaseFunctions functions,
   })  : _firestore = firestore,
         _auth = auth,
-        _storage = storage;
+        _storage = storage,
+        _functions = functions;
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
   final FirebaseStorage _storage;
+  final FirebaseFunctions _functions;
 
   User get _user {
     final user = _auth.currentUser;
@@ -95,5 +110,17 @@ class FirebaseProfileRepository implements ProfileRepository {
     final url = await ref.getDownloadURL();
     await _doc.update({'photoUrl': url, 'updatedAt': FieldValue.serverTimestamp()});
     return url;
+  }
+
+  @override
+  Future<void> deleteMyAccount() async {
+    try {
+      await _functions.httpsCallable('deleteMyAccount').call({'confirm': 'DELETE'});
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'failed-precondition') {
+        throw AccountDeletionBlocked(e.message ?? 'Account cannot be deleted yet.');
+      }
+      rethrow;
+    }
   }
 }

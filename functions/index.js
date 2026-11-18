@@ -709,3 +709,65 @@ exports.getQuizForEditing = onCall(async (request) => {
     },
   };
 });
+
+/**
+ * Permanently deletes the caller's account and personal data. Financial
+ * ledgers (payments, sales, payouts) are retained but anonymised. Refuses when
+ * deletion would orphan other people's data (owned courses, organizations) or
+ * lock out the platform (super admin).
+ */
+exports.deleteMyAccount = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  if (request.data?.confirm !== 'DELETE') throw new HttpsError('invalid-argument', 'Confirmation is required.');
+  if (request.auth.token.role === 'super_admin') {
+    throw new HttpsError('failed-precondition', 'A super admin account cannot delete itself.');
+  }
+
+  const [ownedCourses, ownedOrgs] = await Promise.all([
+    db.collection('courses').where('instructorId', '==', uid).limit(1).get(),
+    db.collection('organizations').where('ownerUid', '==', uid).limit(1).get(),
+  ]);
+  if (!ownedCourses.empty) throw new HttpsError('failed-precondition', 'Archive or transfer your courses before deleting your account.');
+  if (!ownedOrgs.empty) throw new HttpsError('failed-precondition', 'Transfer organization ownership before deleting your account.');
+
+  const deleteWhere = async (collection, field) => {
+    const snapshot = await db.collection(collection).where(field, '==', uid).get();
+    await Promise.all(snapshot.docs.map((d) => d.ref.delete()));
+  };
+  await Promise.all([
+    deleteWhere('enrollments', 'studentId'),
+    deleteWhere('course_reviews', 'studentId'),
+    deleteWhere('quiz_attempts', 'studentId'),
+    deleteWhere('job_applications', 'candidateId'),
+    deleteWhere('org_members', 'uid'),
+    deleteWhere('instructor_applications', 'uid'),
+  ]);
+
+  // Certificates: remove the owner's copy and anonymise the public verification record.
+  const certificates = await db.collection('certificates').where('studentId', '==', uid).get();
+  await Promise.all(certificates.docs.map(async (d) => {
+    const code = d.data().verificationCode;
+    if (code) await db.collection('certificate_verifications').doc(code).set({ learnerName: 'Deleted user' }, { merge: true });
+    await d.ref.delete();
+  }));
+
+  // Employers: close open postings instead of deleting other people's applications.
+  const postings = await db.collection('job_postings').where('employerId', '==', uid).get();
+  await Promise.all(postings.docs.map((d) => d.ref.update({ status: 'closed' })));
+
+  // Payments (keyed by uid only) and sales ledger entries are retained for accounting;
+  // they carry no contact details beyond the display name captured at purchase time.
+
+  await db.recursiveDelete(db.collection('users').doc(uid));
+  await getStorage().bucket().file(`avatars/${uid}`).delete({ ignoreNotFound: true }).catch(() => {});
+  await db.collection('audit_logs').add({
+    actorUid: uid,
+    action: 'account_deleted',
+    targetType: 'user',
+    targetId: uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  await getAuth().deleteUser(uid);
+  return { deleted: true };
+});
