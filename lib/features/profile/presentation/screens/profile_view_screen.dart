@@ -8,6 +8,7 @@ import '../../../../core/router/route_paths.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../widgets/instructor_application_card.dart';
 
 class ProfileViewScreen extends ConsumerWidget {
   const ProfileViewScreen({super.key});
@@ -27,7 +28,7 @@ class ProfileViewScreen extends ConsumerWidget {
     };
     return Scaffold(
       appBar: AppBar(title: const Text('โปรไฟล์')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,6 +51,10 @@ class ProfileViewScreen extends ConsumerWidget {
               variant: AppButtonVariant.secondary,
               onPressed: () => context.push(RoutePaths.jobs),
             ),
+            if (auth.role == UserRole.learner) ...[
+              const SizedBox(height: AppSpacing.lg),
+              InstructorApplicationCard(displayName: auth.displayName ?? ''),
+            ],
           ],
         ),
       ),

@@ -328,3 +328,20 @@ test('job board: open postings can be listed by query; duplicate applications ar
     jobId: 'open1', employerId: 'emp-1', candidateId: 'cand-2', candidateName: 'Cand Two', status: 'new', createdAt: new Date(),
   }));
 });
+
+test('instructor application: one per user, own id only, readable by own uid query', async () => {
+  await environment.clearFirestore();
+  const db = asUser('applicant-1', 'learner');
+  const mine = query(collection(db, 'instructor_applications'), where('uid', '==', 'applicant-1'));
+  const empty = await assertSucceeds(getDocs(mine));
+  if (empty.size !== 0) throw new Error('expected no application yet');
+
+  const body = { uid: 'applicant-1', displayName: 'A', experience: 'x'.repeat(30), status: 'pending', createdAt: new Date() };
+  await assertFails(setDoc(doc(db, 'instructor_applications/other-id'), body));
+  await assertFails(setDoc(doc(db, 'instructor_applications/applicant-1'), { ...body, experience: 'too short' }));
+  await assertFails(setDoc(doc(db, 'instructor_applications/applicant-1'), { ...body, status: 'approved' }));
+  await assertSucceeds(setDoc(doc(db, 'instructor_applications/applicant-1'), body));
+  await assertFails(setDoc(doc(db, 'instructor_applications/applicant-1'), body)); // re-submit = update, admin only
+  const after = await assertSucceeds(getDocs(mine));
+  if (after.size !== 1) throw new Error('expected one application');
+});

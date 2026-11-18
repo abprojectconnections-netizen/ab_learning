@@ -19,7 +19,9 @@ import 'package:ab_learning/features/marketplace/presentation/providers/course_p
 import 'package:ab_learning/features/payment/data/order_repository.dart';
 import 'package:ab_learning/features/payment/domain/order_model.dart';
 import 'package:ab_learning/features/payment/presentation/providers/order_providers.dart';
+import 'package:ab_learning/features/profile/data/instructor_application_repository.dart';
 import 'package:ab_learning/features/profile/data/profile_repository.dart';
+import 'package:ab_learning/features/profile/presentation/providers/instructor_application_providers.dart';
 import 'package:ab_learning/features/profile/presentation/providers/profile_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,6 +32,8 @@ final mockBackendOverrides = <Override>[
   progressRepositoryProvider.overrideWith((ref) => MockProgressRepository()),
   enrollmentRepositoryProvider.overrideWith((ref) => MockEnrollmentRepository()),
   profileRepositoryProvider.overrideWith((ref) => MockProfileRepository()),
+  instructorApplicationRepositoryProvider
+      .overrideWith((ref) => MockInstructorApplicationRepository()),
 ];
 
 /// Local demo identities. Production authorization must come from Firebase
@@ -314,5 +318,23 @@ class MockProfileRepository implements ProfileRepository {
       bio: bio ?? _profile.bio,
       photoUrl: photoUrl ?? _profile.photoUrl,
     );
+  }
+}
+
+class MockInstructorApplicationRepository
+    implements InstructorApplicationRepository {
+  InstructorApplicationStatus status = InstructorApplicationStatus.none;
+  String? lastExperience;
+
+  @override
+  Future<InstructorApplicationStatus> myStatus() async => status;
+
+  @override
+  Future<void> apply({
+    required String displayName,
+    required String experience,
+  }) async {
+    lastExperience = experience;
+    status = InstructorApplicationStatus.pending;
   }
 }
