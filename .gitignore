@@ -58,3 +58,18 @@ env/*.json
 !env/*.example.json
 migration/mapping.js
 migration/node_modules/
+Backend environment and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+Backend generated data
+backend/bin/
+backend/tmp/
+backend/uploads/
+backend/logs/
+Docker local data
+data/
+docker-data/

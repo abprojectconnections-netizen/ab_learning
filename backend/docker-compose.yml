@@ -1,0 +1,68 @@
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_dev_pw
+      MYSQL_DATABASE: ab_learning
+      MYSQL_USER: ab_app
+      MYSQL_PASSWORD: ab_app_pw
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_dev_pw"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      APP_ENV: "dev"
+      DB_DSN: "ab_app:ab_app_pw@tcp(mysql:3306)/ab_learning?parseTime=true&charset=utf8mb4"
+      JWT_SECRET: "dev-only-insecure-secret-change-me"
+      CORS_ALLOW_ORIGIN: "http://localhost:56901"
+      RATE_LIMIT_REQUESTS: "120"
+      RATE_LIMIT_WINDOW_SECONDS: "60"
+    ports:
+      - "8080:8080"
+
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    container_name: ab-learning-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: ChangeThisPassword123!
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
+    container_name: ab-learning-minio-init
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 minioadmin 'ChangeThisPassword123!';
+        do sleep 2; done;
+        mc mb --ignore-existing local/ab-learning;
+
+volumes:
+  mysql_data:
+  minio_data:
