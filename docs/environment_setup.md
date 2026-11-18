@@ -52,3 +52,22 @@ signed video URLs need the functions service account to hold
 4. Deploy the backend and seed sample data: `powershell -File scripts/dev-deploy.ps1 -Project absmart-dev -Seed` (the script refuses non-`-dev` project IDs).
 5. Run the app: `flutter run -d chrome --dart-define-from-file=env/dev.json` (no `USE_FIREBASE_EMULATORS`).
 6. Create accounts by signing up in the app, then grant the first Super Admin with `functions/bootstrap_superadmin.js` using `GCLOUD_PROJECT=absmart-dev` and Application Default Credentials (`gcloud auth application-default login`).
+
+
+## Demo data for testing every menu (emulator only)
+
+With the Auth and Firestore emulators running:
+
+```powershell
+$env:FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
+$env:FIRESTORE_EMULATOR_HOST="127.0.0.1:8180"
+$env:GCLOUD_PROJECT="demo-ab-learning"
+npm run seed:demo --prefix functions
+```
+
+Creates 20-30 records per menu (categories, courses with lessons and quizzes, enrollments, sales, payouts,
+reviews, certificates, notifications, jobs and applications, organization members, learning paths,
+instructor applications, audit logs) plus 25 learners (`learner01@demo.test` ... `learner25@demo.test`),
+5 instructors (`instructor@demo.test`, `instructor02..05@demo.test`) and 3 employers. Password for all demo
+accounts is `Demo#12345`. IDs are deterministic, so the script is safe to re-run. It refuses to run unless
+both emulator hosts are set.
