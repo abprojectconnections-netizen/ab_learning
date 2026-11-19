@@ -44,7 +44,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	u, err := h.svc.Register(req)
+	resp, err := h.svc.Register(req)
 	switch {
 	case errors.Is(err, ErrValidation):
 		httpx.Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -53,7 +53,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		httpx.Error(w, http.StatusInternalServerError, "internal error")
 	default:
-		httpx.JSON(w, http.StatusCreated, u)
+		httpx.JSON(w, http.StatusCreated, resp)
 	}
 }
 

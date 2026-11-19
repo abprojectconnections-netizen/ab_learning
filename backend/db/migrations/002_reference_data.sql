@@ -1,14 +1,17 @@
--- Reference data required in every environment (not demo data).
-INSERT INTO roles (code, name_th, name_en) VALUES
-  ('GUEST',        'ผู้เยี่ยมชม',        'Guest'),
-  ('LEARNER',      'ผู้เรียน',           'Learner'),
-  ('INSTRUCTOR',   'ผู้สอน',            'Instructor'),
-  ('CORP_ADMIN',   'ผู้ดูแลองค์กร',      'Corporate Admin'),
-  ('CORP_MANAGER', 'ผู้จัดการองค์กร',     'Corporate Manager'),
-  ('EMPLOYER',     'นายจ้าง',           'Employer'),
-  ('ADMIN',        'ผู้ดูแลระบบ',        'Admin');
+-- Reference data required in every environment.
+-- INSERT IGNORE preserves existing rows and does not overwrite
+-- administrator-managed names or existing category records.
 
-INSERT INTO categories (name_th, name_en, slug, icon) VALUES
+INSERT IGNORE INTO roles (code, name_th, name_en) VALUES
+  ('GUEST',        'ผู้เยี่ยมชม',       'Guest'),
+  ('LEARNER',      'ผู้เรียน',          'Learner'),
+  ('INSTRUCTOR',   'ผู้สอน',           'Instructor'),
+  ('CORP_ADMIN',   'ผู้ดูแลองค์กร',     'Corporate Admin'),
+  ('CORP_MANAGER', 'ผู้จัดการองค์กร',    'Corporate Manager'),
+  ('EMPLOYER',     'นายจ้าง',          'Employer'),
+  ('ADMIN',        'ผู้ดูแลระบบ',       'Admin');
+
+INSERT IGNORE INTO categories (name_th, name_en, slug, icon) VALUES
   ('การเขียนโปรแกรม', 'Programming', 'programming', 'code'),
   ('ดีไซน์',          'Design',      'design',      'palette'),
   ('ธุรกิจ',          'Business',    'business',    'briefcase'),

@@ -51,6 +51,8 @@ func fail(w http.ResponseWriter, err error) {
 		httpx.Error(w, http.StatusNotFound, "not found")
 	case errors.Is(err, ErrForbidden):
 		httpx.Error(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, ErrInstructorPending):
+		httpx.Error(w, http.StatusForbidden, "instructor account is awaiting admin approval")
 	case errors.Is(err, ErrLocked):
 		httpx.Error(w, http.StatusConflict, err.Error())
 	default:
@@ -250,6 +252,11 @@ func (h *Handler) deleteLesson(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) upload(w http.ResponseWriter, r *http.Request, which string) {
+	// Upload bypasses the domain service, so enforce instructor approval here too.
+	if _, err := h.svc.instructorID(uid(r)); err != nil {
+		fail(w, err)
+		return
+	}
 	res, status, err := h.uploader.Save(w, r, which)
 	if err != nil {
 		httpx.Error(w, status, err.Error())

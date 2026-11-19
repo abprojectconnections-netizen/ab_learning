@@ -62,29 +62,44 @@ func (s *Service) Login(req LoginRequest) (AuthTokenResponse, error) {
 	return s.tokens(u)
 }
 
-func (s *Service) Register(req RegisterRequest) (User, error) {
+func (s *Service) Register(req RegisterRequest) (AuthTokenResponse, error) {
 	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	req.FirstName = strings.TrimSpace(req.FirstName)
 	req.LastName = strings.TrimSpace(req.LastName)
+	req.Phone = strings.TrimSpace(req.Phone)
+	req.Role = strings.ToUpper(strings.TrimSpace(req.Role))
 	if _, err := mail.ParseAddress(req.Email); err != nil {
-		return User{}, errors.Join(ErrValidation, errors.New("a valid email is required"))
+		return AuthTokenResponse{}, errors.Join(ErrValidation, errors.New("a valid email is required"))
 	}
 	if req.FirstName == "" || req.LastName == "" {
-		return User{}, errors.Join(ErrValidation, errors.New("first_name and last_name are required"))
+		return AuthTokenResponse{}, errors.Join(ErrValidation, errors.New("first_name and last_name are required"))
+	}
+	if utf8.RuneCountInString(req.FirstName) > 100 || utf8.RuneCountInString(req.LastName) > 100 {
+		return AuthTokenResponse{}, errors.Join(ErrValidation, errors.New("names must be at most 100 characters"))
 	}
 	if len(req.Password) < 8 {
-		return User{}, errors.Join(ErrValidation, errors.New("password must be at least 8 characters"))
+		return AuthTokenResponse{}, errors.Join(ErrValidation, errors.New("password must be at least 8 characters"))
+	}
+	// Public self-registration is intentionally limited to learner/instructor.
+	if req.Role == "" {
+		req.Role = "LEARNER"
+	}
+	if req.Role != "LEARNER" && req.Role != "INSTRUCTOR" {
+		return AuthTokenResponse{}, errors.Join(ErrValidation, errors.New("role must be LEARNER or INSTRUCTOR"))
 	}
 	hash, err := security.HashPassword(req.Password)
 	if err != nil {
-		return User{}, err
+		return AuthTokenResponse{}, err
 	}
-	id, err := s.repo.CreateLearner(req, hash)
+	id, err := s.repo.CreateUser(req, hash, req.Role)
 	if err != nil {
-		return User{}, err
+		return AuthTokenResponse{}, err
 	}
 	u, err := s.repo.ByID(id)
-	return u.User, err
+	if err != nil {
+		return AuthTokenResponse{}, err
+	}
+	return s.tokens(u)
 }
 
 func (s *Service) Me(id int64) (User, error) {

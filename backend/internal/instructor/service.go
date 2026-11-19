@@ -9,9 +9,10 @@ import (
 )
 
 var (
-	ErrValidation = errors.New("validation failed")
-	ErrForbidden  = errors.New("you do not own this course")
-	ErrLocked     = errors.New("course cannot be modified in its current status")
+	ErrValidation        = errors.New("validation failed")
+	ErrForbidden         = errors.New("you do not own this course")
+	ErrLocked            = errors.New("course cannot be modified in its current status")
+	ErrInstructorPending = errors.New("instructor approval is pending")
 )
 
 type Service struct{ repo *Repository }

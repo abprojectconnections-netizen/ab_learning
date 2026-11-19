@@ -102,6 +102,60 @@ func (r *Repository) Moderate(courseID, adminID int64, approve bool, reason stri
 	return tx.Commit()
 }
 
+// PendingInstructors returns instructor accounts that have not been verified.
+func (r *Repository) PendingInstructors() ([]PendingInstructor, error) {
+	rows, err := r.db.Query(`SELECT i.id, u.id, u.email,
+        COALESCE(p.first_name,''), COALESCE(p.last_name,''), u.created_at
+        FROM instructors i
+        JOIN users u ON u.id = i.user_id
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE i.verified_at IS NULL AND u.status = 'active'
+        ORDER BY u.created_at ASC LIMIT 200`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]PendingInstructor, 0)
+	for rows.Next() {
+		var item PendingInstructor
+		if err := rows.Scan(&item.ID, &item.UserID, &item.Email,
+			&item.FirstName, &item.LastName, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+// ApproveInstructor atomically verifies an instructor and writes an audit entry.
+func (r *Repository) ApproveInstructor(instructorID, adminID int64) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var verified sql.NullTime
+	if err := tx.QueryRow(`SELECT verified_at FROM instructors WHERE id = ? FOR UPDATE`,
+		instructorID).Scan(&verified); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if verified.Valid {
+		return ErrState
+	}
+	if _, err := tx.Exec(`UPDATE instructors SET verified_at = NOW() WHERE id = ?`, instructorID); err != nil {
+		return err
+	}
+	if err := audit(tx, adminID, "instructor.verify", "instructor", instructorID,
+		map[string]any{"verified": true}); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func audit(tx *sql.Tx, actor int64, action, targetType string, targetID int64, meta map[string]any) error {
 	b, _ := json.Marshal(meta)
 	_, err := tx.Exec(`INSERT INTO audit_logs (actor_id, action, target_type, target_id, metadata) VALUES (?,?,?,?,?)`,

@@ -15,6 +15,8 @@ func Register(mux *http.ServeMux, guard middleware.Guard, svc *Service) {
 	adm := func(fn http.HandlerFunc) http.Handler { return guard.Require(fn, middleware.RoleAdmin) }
 
 	mux.Handle("GET /api/v1/admin/dashboard", adm(h.dashboard))
+	mux.Handle("GET /api/v1/admin/instructors/pending", adm(h.pendingInstructors))
+	mux.Handle("POST /api/v1/admin/instructors/{id}/approve", adm(h.approveInstructor))
 	mux.Handle("GET /api/v1/admin/courses/pending", adm(h.moderation))
 	mux.Handle("POST /api/v1/admin/courses/{id}/approve", adm(h.approve))
 	mux.Handle("POST /api/v1/admin/courses/{id}/reject", adm(h.reject))
@@ -185,4 +187,25 @@ func (h *Handler) refund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, res)
+}
+
+func (h *Handler) pendingInstructors(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.PendingInstructors()
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) approveInstructor(w http.ResponseWriter, r *http.Request) {
+	id, ok := idParam(w, r)
+	if !ok {
+		return
+	}
+	if err := h.svc.ApproveInstructor(id, adminID(r)); err != nil {
+		fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"status": "verified", "instructor_id": id})
 }

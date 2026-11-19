@@ -105,3 +105,14 @@ func (s *Service) Refund(paymentID, adminID int64, req RefundRequest) (RefundRes
 	}
 	return s.repo.Refund(paymentID, adminID, req)
 }
+
+func (s *Service) PendingInstructors() ([]PendingInstructor, error) {
+	return s.repo.PendingInstructors()
+}
+
+func (s *Service) ApproveInstructor(instructorID, adminID int64) error {
+	if instructorID <= 0 {
+		return invalid("invalid instructor id")
+	}
+	return s.repo.ApproveInstructor(instructorID, adminID)
+}

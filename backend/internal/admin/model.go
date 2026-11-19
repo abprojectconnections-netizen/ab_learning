@@ -73,11 +73,11 @@ type RefundRequest struct {
 }
 
 type RefundResult struct {
-	RefundID       int64   `json:"refund_id"`
-	PaymentID      int64   `json:"payment_id"`
-	Amount         float64 `json:"amount"`
-	TotalRefunded  float64 `json:"total_refunded"`
-	OrderStatus    string  `json:"order_status"`
+	RefundID      int64   `json:"refund_id"`
+	PaymentID     int64   `json:"payment_id"`
+	Amount        float64 `json:"amount"`
+	TotalRefunded float64 `json:"total_refunded"`
+	OrderStatus   string  `json:"order_status"`
 }
 
 type RejectRequest struct {
@@ -86,4 +86,14 @@ type RejectRequest struct {
 
 type SuspendRequest struct {
 	Reason string `json:"reason"`
+}
+
+// PendingInstructor represents an instructor awaiting manual verification.
+type PendingInstructor struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	Email     string    `json:"email"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	CreatedAt time.Time `json:"created_at"`
 }

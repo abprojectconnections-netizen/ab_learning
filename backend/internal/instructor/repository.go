@@ -19,13 +19,10 @@ func NewRepository(db *sql.DB) *Repository { return &Repository{db: db} }
 // row on first use.
 func (r *Repository) InstructorID(userID int64) (int64, error) {
 	var id int64
-	err := r.db.QueryRow(`SELECT id FROM instructors WHERE user_id = ?`, userID).Scan(&id)
+	err := r.db.QueryRow(`SELECT id FROM instructors
+		WHERE user_id = ? AND verified_at IS NOT NULL`, userID).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		res, err := r.db.Exec(`INSERT INTO instructors (user_id) VALUES (?)`, userID)
-		if err != nil {
-			return 0, err
-		}
-		return res.LastInsertId()
+		return 0, ErrInstructorPending
 	}
 	return id, err
 }

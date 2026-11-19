@@ -26,6 +26,20 @@ func TestRegisterRequiresValidEmailAndPassword(t *testing.T) {
 	}
 }
 
+func TestRegisterRejectsPrivilegedSelfRegistration(t *testing.T) {
+	service := NewService(NewRepository(nil), "test-secret")
+	_, err := service.Register(RegisterRequest{
+		FirstName: "Test",
+		LastName:  "User",
+		Email:     "test@example.com",
+		Password:  "strong-password",
+		Role:      "ADMIN",
+	})
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("Register with ADMIN role = %v, want ErrValidation", err)
+	}
+}
+
 func TestUpdateMeValidatesNames(t *testing.T) {
 	service := NewService(NewRepository(nil), "test-secret")
 
@@ -53,8 +67,8 @@ func TestUpdateMeSavesTrimmedNameAndReturnsUser(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery("SELECT u.id").
 		WithArgs(int64(7)).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "code", "first", "last", "avatar", "hash", "status"}).
-			AddRow(int64(7), "a@x.test", "LEARNER", "Anan", "Suksawat", "", "h", "active"))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "email", "code", "first", "last", "avatar", "hash", "status", "instructor_verified"}).
+			AddRow(int64(7), "a@x.test", "LEARNER", "Anan", "Suksawat", "", "h", "active", false))
 
 	u, err := service.UpdateMe(7, UpdateProfileRequest{FirstName: " Anan ", LastName: "Suksawat "})
 	if err != nil {
