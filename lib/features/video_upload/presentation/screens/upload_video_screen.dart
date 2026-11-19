@@ -1,5 +1,6 @@
 // lib/features/video_upload/presentation/screens/upload_video_screen.dart
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/video_upload_repository.dart';
@@ -23,11 +24,14 @@ class _UploadVideoScreenState extends ConsumerState<UploadVideoScreen> {
   String? _message;
 
   Future<void> _pickAndUpload() async {
-    final picked = await FilePicker.platform.pickFiles(type: FileType.video, withData: true);
+    // Mobile streams from disk (no bytes in memory); web needs the bytes.
+    final picked = await FilePicker.platform.pickFiles(type: FileType.video, withData: kIsWeb);
     final file = picked?.files.single;
-    final bytes = file?.bytes;
-    if (file == null || bytes == null) return;
-    if (bytes.length >= kMaxVideoBytes) {
+    if (file == null) return;
+    final bytes = file.bytes;
+    final filePath = kIsWeb ? null : file.path;
+    if (bytes == null && filePath == null) return;
+    if (file.size >= kMaxVideoBytes) {
       setState(() => _message = 'ไฟล์ใหญ่เกิน 500 MB');
       return;
     }
@@ -37,6 +41,8 @@ class _UploadVideoScreenState extends ConsumerState<UploadVideoScreen> {
       await for (final p in ref.read(videoUploadRepositoryProvider).uploadLessonVideo(
             courseId: widget.courseId,
             lessonId: widget.lectureId,
+            sizeBytes: file.size,
+            filePath: filePath,
             bytes: bytes,
             contentType: ext == 'mov' ? 'video/quicktime' : 'video/$ext',
           )) {

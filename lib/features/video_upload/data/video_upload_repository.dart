@@ -1,8 +1,10 @@
 // lib/features/video_upload/data/video_upload_repository.dart
+import 'dart:io' show File;
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 const kMaxVideoBytes = 500 * 1024 * 1024; // mirrors storage.rules
 
@@ -16,11 +18,16 @@ class VideoUploadProgress {
 abstract class VideoUploadRepository {
   /// Uploads to lesson_videos/{courseId}/{lessonId} and records the path in
   /// the lesson document (`videoRef`). Emits progress; completes when stored.
+  ///
+  /// On Android/iOS pass [filePath] so the file is streamed from disk without
+  /// loading it into memory. On web (no file path) pass [bytes].
   Stream<VideoUploadProgress> uploadLessonVideo({
     required String courseId,
     required String lessonId,
-    required Uint8List bytes,
+    required int sizeBytes,
     required String contentType,
+    String? filePath,
+    Uint8List? bytes,
   });
 
   Future<void> setPreview(String courseId, String lessonId, bool isPreview);
@@ -49,16 +56,24 @@ class FirebaseVideoUploadRepository implements VideoUploadRepository {
   Stream<VideoUploadProgress> uploadLessonVideo({
     required String courseId,
     required String lessonId,
-    required Uint8List bytes,
+    required int sizeBytes,
     required String contentType,
+    String? filePath,
+    Uint8List? bytes,
   }) async* {
-    if (bytes.length >= kMaxVideoBytes) {
+    if (sizeBytes >= kMaxVideoBytes) {
       throw ArgumentError('Video must be smaller than 500 MB.');
     }
+    final useFile = !kIsWeb && filePath != null;
+    if (!useFile && bytes == null) {
+      throw ArgumentError('Provide a file path (mobile) or bytes (web).');
+    }
     final path = 'lesson_videos/$courseId/$lessonId';
-    final task = _storage
-        .ref(path)
-        .putData(bytes, SettableMetadata(contentType: contentType));
+    final ref = _storage.ref(path);
+    final metadata = SettableMetadata(contentType: contentType);
+    final task = useFile
+        ? ref.putFile(File(filePath), metadata)
+        : ref.putData(bytes!, metadata);
     await for (final snapshot in task.snapshotEvents) {
       yield VideoUploadProgress(snapshot.bytesTransferred, snapshot.totalBytes);
     }
