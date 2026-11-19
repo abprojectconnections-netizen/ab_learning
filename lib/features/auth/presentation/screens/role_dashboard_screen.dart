@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/router/role_guard.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../marketplace/presentation/providers/course_providers.dart';
 import '../../../workspace/domain/workspace_models.dart';
 import '../../../workspace/presentation/providers/workspace_providers.dart';
 
@@ -433,6 +434,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     final creatingPath = !employer && _selectedTab == 1;
     final dialogTitle = employer ? 'สร้างตำแหน่งงาน' : creatingPath ? 'สร้างแผนการเรียน' : 'เพิ่มสมาชิกองค์กร';
     final addingMember = !employer && !creatingPath;
+    final selectedCourses = <String>{};
     final ok = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -449,6 +451,11 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
                       controller: _detailController,
                       decoration: InputDecoration(labelText: employer ? 'สถานที่ / รูปแบบงาน' : 'รายละเอียดแผน')),
                 ],
+                if (creatingPath) ...[
+                  const SizedBox(height: 12),
+                  const Align(alignment: Alignment.centerLeft, child: Text('คอร์สในแผน (เลือกได้สูงสุด 20)')),
+                  SizedBox(height: 200, width: 320, child: _CoursePicker(selected: selectedCourses)),
+                ],
               ]),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('ยกเลิก')),
@@ -464,7 +471,7 @@ class _RoleDashboardScreenState extends ConsumerState<RoleDashboardScreen> {
     } else if (creatingPath) {
       final me = await ref.read(staffMembershipProvider.future);
       if (me == null) return _toast('ไม่พบองค์กรของคุณ');
-      await _run(() => ref.read(orgRepositoryProvider).createPath(me.orgId, title: first, description: second),
+      await _run(() => ref.read(orgRepositoryProvider).createPath(me.orgId, title: first, description: second, courseIds: selectedCourses.toList()),
           refresh: [learningPathsProvider], success: 'สร้างแผนการเรียนแล้ว');
     } else {
       await _run(() => ref.read(orgRepositoryProvider).addMember(first),
@@ -590,4 +597,42 @@ class _HeroPanel extends StatelessWidget {
             ),
         ]),
       );
+}
+
+/// Checklist of published courses used when composing a learning path.
+class _CoursePicker extends ConsumerStatefulWidget {
+  const _CoursePicker({required this.selected});
+
+  final Set<String> selected;
+
+  @override
+  ConsumerState<_CoursePicker> createState() => _CoursePickerState();
+}
+
+class _CoursePickerState extends ConsumerState<_CoursePicker> {
+  @override
+  Widget build(BuildContext context) {
+    final courses = ref.watch(publishedCoursesProvider);
+    return courses.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const Text('โหลดรายการคอร์สไม่สำเร็จ'),
+      data: (list) => ListView(
+        children: [
+          for (final c in list)
+            CheckboxListTile(
+              dense: true,
+              value: widget.selected.contains(c.id),
+              title: Text(c.title),
+              onChanged: (v) => setState(() {
+                if (v == true) {
+                  if (widget.selected.length < 20) widget.selected.add(c.id);
+                } else {
+                  widget.selected.remove(c.id);
+                }
+              }),
+            ),
+        ],
+      ),
+    );
+  }
 }

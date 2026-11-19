@@ -44,6 +44,10 @@ final learningPathsProvider = FutureProvider.autoDispose<List<LearningPath>>((re
   return ref.watch(orgRepositoryProvider).paths(me.orgId);
 });
 
+/// Active learning paths for the signed-in member (any role).
+final myLearningPathsProvider = FutureProvider.autoDispose<List<LearningPath>>(
+    (ref) => ref.watch(orgRepositoryProvider).myPaths());
+
 final teamProgressProvider = FutureProvider.autoDispose<List<TeamMemberProgress>>(
     (ref) => ref.watch(orgRepositoryProvider).teamProgress());
 

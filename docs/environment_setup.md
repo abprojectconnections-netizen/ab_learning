@@ -1,11 +1,16 @@
 # Environment setup
 
-## Local mock development
+## Run locally (Firebase emulators)
 
-1. Install a Flutter SDK compatible with `pubspec.yaml` (Dart `>=3.3.0 <4.0.0`).
-2. Run `flutter pub get`.
-3. Run `flutter run -d chrome` or `flutter run` for a connected mobile target. The default `ENV=dev` uses mock repositories.
-4. Run `flutter analyze --no-pub` and `flutter test --no-pub` before committing.
+Prerequisites: Flutter SDK, Node 22, JDK 21 and `npm install -g firebase-tools`.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1
+```
+
+The script starts the Auth/Firestore/Functions/Storage emulators in a second window, seeds demo accounts and 20-30 records per menu on the first start (data is kept in `.emulator-data`; use `-Reseed` to reset), then runs `flutter run -d chrome --dart-define-from-file=env/emulator.json`. The Emulator UI is at http://localhost:4000. All demo accounts (`learner@demo.test`, `instructor@demo.test`, `corpadmin@demo.test`, `corpmanager@demo.test`, `employer@demo.test`, `admin@demo.test`, `superadmin@demo.test`) use the password `Demo#12345`.
+
+Run `flutter analyze --no-pub` and `flutter test --no-pub` before committing.
 
 ## Firebase DEV
 

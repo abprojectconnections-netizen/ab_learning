@@ -1,3 +1,4 @@
+import '../../features/workspace/presentation/screens/my_learning_paths_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'route_paths.dart';
@@ -125,6 +126,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: RoutePaths.progress,
               builder: (c, s) => const ProgressDashboardScreen()),
+          GoRoute(
+              path: RoutePaths.myLearningPaths,
+              builder: (c, s) => const MyLearningPathsScreen()),
           GoRoute(
               path: RoutePaths.myCertificates,
               builder: (c, s) => const MyCertificatesScreen()),
