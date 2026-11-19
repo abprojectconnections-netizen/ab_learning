@@ -39,9 +39,14 @@ class FakeOrgRepository implements OrgRepository {
   Future<List<LearningPath>> paths(String orgId) async => List.of(_paths);
 
   @override
-  Future<void> createPath(String orgId, {required String title, required String description}) async {
-    _paths.add(LearningPath(id: 'p${_paths.length}', orgId: orgId, title: title, description: description, status: 'draft'));
+  Future<void> createPath(String orgId, {required String title, required String description, List<String> courseIds = const []}) async {
+    _paths.add(LearningPath(id: 'p${_paths.length}', orgId: orgId, title: title, description: description, status: 'draft', courseIds: courseIds));
   }
+
+  @override
+  Future<List<LearningPath>> myPaths() async => _paths.where((p) => p.status == 'active').toList();
+
+  void addActivePath(LearningPath path) => _paths.add(path);
 
   @override
   Future<void> setPathStatus(String pathId, String status) async {}

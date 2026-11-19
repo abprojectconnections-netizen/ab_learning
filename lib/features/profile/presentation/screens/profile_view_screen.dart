@@ -51,6 +51,13 @@ class ProfileViewScreen extends ConsumerWidget {
               variant: AppButtonVariant.secondary,
               onPressed: () => context.push(RoutePaths.jobs),
             ),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              label: 'แผนการเรียนขององค์กร',
+              icon: Icons.account_tree_outlined,
+              variant: AppButtonVariant.secondary,
+              onPressed: () => context.push(RoutePaths.myLearningPaths),
+            ),
             if (auth.role == UserRole.learner) ...[
               const SizedBox(height: AppSpacing.lg),
               InstructorApplicationCard(displayName: auth.displayName ?? ''),

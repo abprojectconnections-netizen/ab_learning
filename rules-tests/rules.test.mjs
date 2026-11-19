@@ -345,3 +345,13 @@ test('instructor application: one per user, own id only, readable by own uid que
   const after = await assertSucceeds(getDocs(mine));
   if (after.size !== 1) throw new Error('expected one application');
 });
+
+test('learning paths: course lists are validated', async () => {
+  await environment.clearFirestore();
+  await seed(orgSeed);
+  const admin = asUser('corp-admin', 'corporate_admin');
+  const base = { orgId: 'org1', title: 'Onboarding', description: 'd', status: 'draft', createdBy: 'corp-admin', createdAt: new Date() };
+  await assertSucceeds(setDoc(doc(admin, 'learning_paths/c1'), { ...base, courseIds: ['a', 'b'] }));
+  await assertFails(setDoc(doc(admin, 'learning_paths/c2'), { ...base, courseIds: 'a' }));
+  await assertFails(setDoc(doc(admin, 'learning_paths/c3'), { ...base, courseIds: Array.from({ length: 21 }, (_, i) => `c${i}`) }));
+});

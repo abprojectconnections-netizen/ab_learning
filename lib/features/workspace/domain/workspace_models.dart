@@ -25,12 +25,14 @@ class LearningPath {
   final String title;
   final String description;
   final String status; // draft | active | archived
+  final List<String> courseIds;
   const LearningPath({
     required this.id,
     required this.orgId,
     required this.title,
     required this.description,
     required this.status,
+    this.courseIds = const [],
   });
 }
 

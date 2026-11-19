@@ -16,6 +16,7 @@ class RoutePaths {
   static const quizResult = '/learn/:courseId/quiz/:quizId/result';
   static const progress = '/my-learning/progress';
   static const myCertificates = '/my-learning/certificates';
+  static const myLearningPaths = '/my-learning/paths';
   static const checkout = '/checkout/:courseId';
   static const orderStatus = '/orders/:orderId';
 

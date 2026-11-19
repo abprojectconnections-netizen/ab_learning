@@ -22,7 +22,12 @@ abstract class OrgRepository {
   Future<void> setMemberStatus(String orgId, String uid, String status);
   Future<List<LearningPath>> paths(String orgId);
   Future<void> createPath(String orgId,
-      {required String title, required String description});
+      {required String title,
+      required String description,
+      List<String> courseIds = const []});
+
+  /// Active learning paths of every organization the signed-in user belongs to.
+  Future<List<LearningPath>> myPaths();
   Future<void> setPathStatus(String pathId, String status);
   Future<List<TeamMemberProgress>> teamProgress();
 }
@@ -88,6 +93,18 @@ class FirebaseOrgRepository implements OrgRepository {
     });
   }
 
+  LearningPath _pathFrom(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data();
+    return LearningPath(
+      id: doc.id,
+      orgId: d['orgId'] as String? ?? '',
+      title: d['title'] as String? ?? '',
+      description: d['description'] as String? ?? '',
+      status: d['status'] as String? ?? 'draft',
+      courseIds: (d['courseIds'] as List?)?.whereType<String>().toList() ?? const [],
+    );
+  }
+
   @override
   Future<List<LearningPath>> paths(String orgId) async {
     final result = await _db
@@ -95,25 +112,43 @@ class FirebaseOrgRepository implements OrgRepository {
         .where('orgId', isEqualTo: orgId)
         .orderBy('createdAt', descending: true)
         .get();
-    return result.docs.map((doc) {
-      final d = doc.data();
-      return LearningPath(
-        id: doc.id,
-        orgId: orgId,
-        title: d['title'] as String? ?? '',
-        description: d['description'] as String? ?? '',
-        status: d['status'] as String? ?? 'draft',
-      );
-    }).toList();
+    return result.docs.map(_pathFrom).toList();
+  }
+
+  @override
+  Future<List<LearningPath>> myPaths() async {
+    // Membership query is allowed because each document's uid is the caller's.
+    final memberships = await _db
+        .collection('org_members')
+        .where('uid', isEqualTo: _uidOf(_auth))
+        .get();
+    final orgIds = memberships.docs
+        .where((m) => m.data()['status'] == 'active')
+        .map((m) => m.data()['orgId'] as String?)
+        .whereType<String>()
+        .toSet();
+    final paths = <LearningPath>[];
+    for (final orgId in orgIds) {
+      final result = await _db
+          .collection('learning_paths')
+          .where('orgId', isEqualTo: orgId)
+          .orderBy('createdAt', descending: true)
+          .get();
+      paths.addAll(result.docs.map(_pathFrom).where((p) => p.status == 'active'));
+    }
+    return paths;
   }
 
   @override
   Future<void> createPath(String orgId,
-      {required String title, required String description}) async {
+      {required String title,
+      required String description,
+      List<String> courseIds = const []}) async {
     await _db.collection('learning_paths').add({
       'orgId': orgId,
       'title': title.trim(),
       'description': description.trim(),
+      if (courseIds.isNotEmpty) 'courseIds': courseIds,
       'status': 'draft',
       'createdBy': _uidOf(_auth),
       'createdAt': FieldValue.serverTimestamp(),
