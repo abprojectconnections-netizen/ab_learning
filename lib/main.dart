@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import 'core/config/app_config.dart';
 import 'core/config/firebase_options.dart';
@@ -83,21 +84,17 @@ Future<void> main() async {
         5001,
       );
 
+      await FirebaseStorage.instance.useStorageEmulator(host, 9199);
+
       debugPrint('Firebase Emulators connected:');
       debugPrint('Auth: $host:9099');
       debugPrint('Firestore: $host:$firestorePort');
       debugPrint('Functions: $host:5001');
+      debugPrint('Storage: $host:9199');
     }
 
-    // ------------------------------------------------
-    // IMPORTANT:
-    // Firebase Storage has been disabled.
-    // File uploads will be handled by the Backend API
-    // and Docker MinIO instead.
-    //
-    // Do not initialize FirebaseStorage here.
-    // ------------------------------------------------
-
+    // Profile avatars and lesson videos use Firebase Storage (see storage.rules),
+    // so the emulator must be connected together with the others above.
     // ------------------------------------------------
     // 4. Run Application
     // ------------------------------------------------
