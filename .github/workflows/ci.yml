@@ -85,6 +85,45 @@ jobs:
           done
           sh scripts/smoke.sh
           grep -q "migration already applied" api2.log
+      - name: Verify migration 003 on a fresh database
+        env:
+          MYSQL_DATABASE: ab_test
+        run: sh scripts/verify-migrations.sh
+      - name: Upgrade path (existing 001+002 database gets 003 without data loss)
+        env:
+          MYSQL_DATABASE: ab_upgrade
+        run: |
+          mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE ab_upgrade CHARACTER SET utf8mb4"
+          mysql -h 127.0.0.1 -uroot ab_upgrade < db/migrations/001_init.sql
+          mysql -h 127.0.0.1 -uroot ab_upgrade < db/migrations/002_reference_data.sql
+          mysql -h 127.0.0.1 -uroot ab_upgrade -e "INSERT INTO users (role_id,email,password_hash) SELECT id,'keep-me@example.test','x' FROM roles WHERE code='LEARNER'"
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          DB_DSN="root:@tcp(127.0.0.1:3306)/ab_upgrade?parseTime=true&charset=utf8mb4&loc=UTC" \
+            PORT=8081 SEED_DEV=false ./bin/api > api-upgrade.log 2>&1 &
+          echo $! > api-upgrade.pid
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8081/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          kill "$(cat api-upgrade.pid)"
+          grep -q "baseline recorded" api-upgrade.log
+          sh scripts/verify-migrations.sh
+          test "$(mysql -h 127.0.0.1 -uroot -N ab_upgrade -e "SELECT COUNT(*) FROM users WHERE email='keep-me@example.test'")" = "1"
+      - name: Backup and restore round trip
+        run: |
+          export MYSQL_HOST=127.0.0.1 MYSQL_USER=root
+          BACKUP_DIR=backups-ci MYSQL_DATABASE=ab_test sh scripts/db-backup.sh | tee backup.path
+          mysql -h 127.0.0.1 -uroot -e "CREATE DATABASE ab_restore CHARACTER SET utf8mb4"
+          RESTORE_CONFIRM=yes MYSQL_DATABASE=ab_restore sh scripts/db-restore.sh "$(tail -1 backup.path)"
+          for t in users roles menu_items permissions schema_migrations; do
+            a=$(mysql -h 127.0.0.1 -uroot -N ab_test -e "SELECT COUNT(*) FROM $t")
+            b=$(mysql -h 127.0.0.1 -uroot -N ab_restore -e "SELECT COUNT(*) FROM $t")
+            [ "$a" = "$b" ] || { echo "row count mismatch in $t: $a vs $b" >&2; exit 1; }
+          done
+          # A second restore into the now non-empty database must refuse.
+          if RESTORE_CONFIRM=yes MYSQL_DATABASE=ab_restore sh scripts/db-restore.sh "$(tail -1 backup.path)"; then
+            echo "restore overwrote a non-empty database" >&2; exit 1
+          fi
       - name: API logs on failure
         if: failure()
         run: tail -n 80 api.log api2.log 2>/dev/null || true
