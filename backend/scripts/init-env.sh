@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# Creates backend/.env from env/local.env.example with random secrets.
+# Refuses to overwrite an existing .env.
+set -eu
+
+cd "$(dirname "$0")/.."
+
+if [ -e .env ]; then
+  echo ".env already exists; leaving it untouched." >&2
+  exit 0
+fi
+
+rand() { openssl rand -hex "$1"; }
+
+sed -e "s/__GENERATE_LONG__/$(rand 32)/" env/local.env.example | while IFS= read -r line; do
+  case "$line" in
+    *__GENERATE__*) printf '%s\n' "${line%%__GENERATE__*}$(rand 16)${line#*__GENERATE__}" ;;
+    *) printf '%s\n' "$line" ;;
+  esac
+done > .env
+
+chmod 600 .env
+echo "Created backend/.env (git-ignored) with generated local secrets."

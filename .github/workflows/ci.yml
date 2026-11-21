@@ -21,6 +21,77 @@ jobs:
       - run: flutter analyze --no-pub --no-fatal-infos
       - run: flutter test --no-pub
 
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      # Throw-away MySQL for this job only. Root has no password and the port is
+      # reachable only from the runner, so no credentials exist to leak.
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+          MYSQL_DATABASE: ab_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      APP_ENV: test
+      SEED_DEV: "true"
+      DB_DSN: root:@tcp(127.0.0.1:3306)/ab_test?parseTime=true&charset=utf8mb4&loc=UTC
+      CORS_ALLOW_ORIGIN: http://localhost:3000
+      PORT: "8080"
+      UPLOAD_DIR: ./uploads-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Format check
+        run: test -z "$(gofmt -l .)"
+      - run: go build ./...
+      - run: go vet ./...
+      - name: Unit tests with coverage
+        run: |
+          go test ./... -count=1 -coverprofile=coverage.out
+          go tool cover -func=coverage.out | tail -1
+      - name: Boot API on real MySQL and run smoke test
+        run: |
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          go build -o bin/api ./cmd/api
+          ./bin/api > api.log 2>&1 &
+          echo $! > api.pid
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          sh scripts/smoke.sh
+      - name: Restart API (migrations must be idempotent)
+        run: |
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          kill "$(cat api.pid)"; sleep 1
+          ./bin/api > api2.log 2>&1 &
+          echo $! > api.pid
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          sh scripts/smoke.sh
+          grep -q "migration already applied" api2.log
+      - name: API logs on failure
+        if: failure()
+        run: tail -n 80 api.log api2.log 2>/dev/null || true
+      - name: Stop API
+        if: always()
+        run: kill "$(cat api.pid)" 2>/dev/null || true
+
   firebase:
     runs-on: ubuntu-latest
     steps:

@@ -1,23 +1,31 @@
+# AB Learning — local stack (MySQL + API + MinIO).
+#
+# All settings and secrets come from backend/.env, which is git-ignored.
+# Create it with `make env` (generates random secrets from env/local.env.example).
+# Compose refuses to start if a required value is missing; nothing sensitive
+# is hardcoded here.
+#
+# Schema is created only by the API's versioned migrations (db/migrations).
+# MySQL no longer runs db/init on first start, so there is a single schema path.
 
 services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root_dev_pw
-      MYSQL_DATABASE: ab_learning
-      MYSQL_USER: ab_app
-      MYSQL_PASSWORD: ab_app_pw
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?run "make env" to create .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?}
+      MYSQL_USER: ${MYSQL_USER:?}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?}
     ports:
-      - "${MYSQL_HOST_PORT:-3307}:3306"
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3307}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_dev_pw"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
 
   api:
     build: .
@@ -27,42 +35,48 @@ services:
         condition: service_healthy
     environment:
       PORT: "8080"
-      APP_ENV: "dev"
-      DB_DSN: "ab_app:ab_app_pw@tcp(mysql:3306)/ab_learning?parseTime=true&charset=utf8mb4"
-      JWT_SECRET: "dev-only-insecure-secret-change-me"
-      CORS_ALLOW_ORIGIN: "http://localhost:56901"
-      RATE_LIMIT_REQUESTS: "120"
-      RATE_LIMIT_WINDOW_SECONDS: "60"
+      APP_ENV: ${APP_ENV:-dev}
+      DB_DSN: "${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/${MYSQL_DATABASE}?parseTime=true&charset=utf8mb4&loc=UTC"
+      JWT_SECRET: ${JWT_SECRET:?run "make env" to create .env}
+      SEED_DEV: ${SEED_DEV:-false}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:?}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-120}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${API_HOST_PORT:-8080}:8080"
 
   minio:
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
-    container_name: ab-learning-minio
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: ChangeThisPassword123!
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
     restart: unless-stopped
 
   minio-init:
-    image: pgsty/mc:RELEASE.2026-09-16T00-00-00Z
-    container_name: ab-learning-minio-init
+    image: ${MINIO_MC_IMAGE:-minio/mc:latest}
     depends_on:
       - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-ab-learning}
     entrypoint:
       - /bin/sh
       - -c
       - |
-        until mc alias set local http://minio:9000 minioadmin 'ChangeThisPassword123!';
-        do sleep 2; done;
-        mc mb --ignore-existing local/ab-learning;
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do sleep 2; done;
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
 
 volumes:
   mysql_data:
   minio_data:
+  uploads_data:

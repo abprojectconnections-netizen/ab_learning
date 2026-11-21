@@ -1,7 +1,7 @@
-.PHONY: run build test vet fmt up down logs reseed
+.PHONY: run build test vet fmt up down logs reseed env smoke
 
 # Local dev: requires a running MySQL (see `make up` for one via Docker) and
-# a .env file (copy .env.example).
+# a .env file (run `make env`).
 run:
 	go run ./cmd/api
 
@@ -19,10 +19,17 @@ fmt:
 
 # --- Docker Compose (MySQL + API together) ---
 
-up:
+# Creates backend/.env with random local secrets (never overwrites an existing one).
+env:
+	sh scripts/init-env.sh
+
+up: env
 	docker compose up --build -d
-	@echo "API:    http://localhost:8080/health"
-	@echo "MySQL:  localhost:3306 (ab_app / ab_app_pw)"
+	@echo "API:    http://127.0.0.1:8080/api/v1/health"
+	@echo "MySQL:  127.0.0.1:3307 (credentials in backend/.env)"
+
+smoke:
+	sh scripts/smoke.sh
 
 down:
 	docker compose down

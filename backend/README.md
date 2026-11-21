@@ -7,25 +7,29 @@ Instructor, Corporate, Employer, and Administration MVP workflows.
 ## Run locally
 
 ```bash
-cp .env.example .env
-docker compose up --build -d
-curl http://localhost:8080/api/v1/health
+make up          # creates .env with random secrets, starts MySQL + API + MinIO
+make smoke       # health, login, /me, public catalog against the running API
 ```
 
-The MySQL initialization scripts create schema and development seed accounts
-on first startup. Seed accounts use `password123`:
+Configuration lives in `.env` (git-ignored). Templates for every environment
+are in `env/` (`local`, `test`, `staging`, `production`). Docker Compose refuses
+to start when a required value is missing, so no secret is hardcoded.
+
+The schema is created only by the versioned migrations in `db/migrations`
+(applied by the API at startup). `SEED_DEV=true` (local/test only) adds demo
+accounts; they all use the password `Password123!`:
 
 | Role | Email |
 |---|---|
-| Learner | `learner@ablearning.com` |
-| Instructor | `krit@ablearning.com` |
-| Corporate Admin | `corp@ablearning.com` |
-| Corporate Manager | `manager@ablearning.com` |
-| Employer | `employer@ablearning.com` |
-| Administration | `admin@ablearning.com` |
+| Learner | `learner@ablearning.co` |
+| Instructor | `instructor@ablearning.co` |
+| Corporate Admin | `corpadmin@ablearning.co` |
+| Corporate Manager | `corpmanager@ablearning.co` |
+| Employer | `employer@ablearning.co` |
+| Administration | `admin@ablearning.co` |
 
-These accounts and credentials are for local development only. Change or
-remove them before deploying a shared or production environment.
+These accounts are for local development only. The API refuses `SEED_DEV` in
+staging and production.
 
 ## Connect Flutter
 

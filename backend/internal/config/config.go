@@ -9,7 +9,7 @@ import (
 )
 
 type Config struct {
-	Env                string // dev | staging | production
+	Env                string // dev | test | staging | production
 	Port               string
 	DBDSN              string
 	JWTSecret          string

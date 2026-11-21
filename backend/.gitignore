@@ -6,3 +6,8 @@
 # IDE
 .idea/
 .vscode/
+.env.*
+env/*.env
+uploads/
+uploads-test/
+!.env.example
