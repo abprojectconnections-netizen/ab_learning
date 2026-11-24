@@ -1,4 +1,4 @@
-.PHONY: run build test vet fmt up down logs reseed env smoke backup restore
+.PHONY: run build test vet fmt up down logs reseed env smoke backup restore seed-demo
 
 # Local dev: requires a running MySQL (see `make up` for one via Docker) and
 # a .env file (run `make env`).
@@ -52,3 +52,8 @@ backup:
 #   make restore FILE=backups/ab_learning_20261121_000000.sql.gz
 restore:
 	RESTORE_CONFIRM=yes VIA_DOCKER=1 sh scripts/db-restore.sh $(FILE)
+
+# Loads demo data (20-30 rows per module) into the LOCAL database, once.
+# Refuses staging/production and non-local database hosts.
+seed-demo:
+	docker compose exec api ab-seed

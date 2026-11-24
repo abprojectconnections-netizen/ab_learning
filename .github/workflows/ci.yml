@@ -124,6 +124,35 @@ jobs:
           if RESTORE_CONFIRM=yes MYSQL_DATABASE=ab_restore sh scripts/db-restore.sh "$(tail -1 backup.path)"; then
             echo "restore overwrote a non-empty database" >&2; exit 1
           fi
+      - name: Demo seed (20-30 rows per module) is complete and idempotent
+        run: |
+          go build -o bin/seed ./cmd/seed
+          ./bin/seed | tee seed1.log
+          grep -q "demo data loaded" seed1.log
+          MYSQL_DATABASE=ab_test sh scripts/verify-seed.sh
+          ./bin/seed | tee seed2.log
+          grep -q "already present" seed2.log
+          # Demo accounts can sign in (the API's own password hashing).
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          PORT=8082 ./bin/api > api-demo.log 2>&1 &
+          echo $! > api-demo.pid
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8082/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          BASE_URL=http://127.0.0.1:8082/api/v1 SMOKE_IDENTIFIER=demo.learner01@example.test sh scripts/smoke.sh
+          kill "$(cat api-demo.pid)"
+      - name: Seed refuses staging and remote hosts
+        run: |
+          if APP_ENV=staging JWT_SECRET="$(openssl rand -hex 32)" CORS_ALLOW_ORIGIN=https://example.test ./bin/seed; then
+            echo "seed ran in staging" >&2; exit 1
+          fi
+          if DB_DSN="root:@tcp(db.example.test:3306)/x" ./bin/seed; then
+            echo "seed ran against a remote host" >&2; exit 1
+          fi
+      - name: Docker image builds (API + seed binaries)
+        working-directory: backend
+        run: docker build -t ab-api:ci .
       - name: API logs on failure
         if: failure()
         run: tail -n 80 api.log api2.log 2>/dev/null || true
