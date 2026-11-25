@@ -72,7 +72,16 @@ func main() {
 		httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
-	auth.Register(mux, guard, auth.NewService(auth.NewRepository(db), cfg.JWTSecret))
+	authSvc := auth.NewService(auth.NewRepository(db), cfg.JWTSecret)
+	if cfg.Env == "dev" || cfg.Env == "test" {
+		// Local/test only: no mail server exists, so the token is logged.
+		authSvc.WithResetNotifier(func(email, token string) {
+			log.Printf("DEV password reset token for %s: %s", email, token)
+		})
+	} else {
+		log.Printf("auth: no email sender configured; password reset emails are not delivered")
+	}
+	auth.Register(mux, guard, authSvc)
 	courses.Register(mux, courses.NewService(courses.NewRepository(db)))
 	home.NewHandler(home.NewService(home.NewRepository(db))).RegisterRoutes(mux, protected)
 	learning.NewHandler(learning.NewService(learningRepo, learningRepo, certificateRepo)).RegisterRoutes(mux, protected)

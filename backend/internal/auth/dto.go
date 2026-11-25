@@ -3,6 +3,7 @@ package auth
 type LoginRequest struct {
 	Identifier string `json:"identifier"`
 	Password   string `json:"password"`
+	meta       clientMeta
 }
 
 type RegisterRequest struct {
@@ -12,6 +13,7 @@ type RegisterRequest struct {
 	Phone     string `json:"phone"`
 	Password  string `json:"password"`
 	Role      string `json:"role"`
+	meta      clientMeta
 }
 
 type UpdateProfileRequest struct {
