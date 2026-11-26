@@ -12,7 +12,9 @@ type Handler struct{ svc *Service }
 
 func Register(mux *http.ServeMux, guard middleware.Guard, svc *Service) {
 	h := &Handler{svc: svc}
-	adm := func(fn http.HandlerFunc) http.Handler { return guard.Require(fn, middleware.RoleAdmin) }
+	adm := func(fn http.HandlerFunc) http.Handler {
+		return guard.Require(fn, middleware.RoleAdmin, middleware.RoleSuperAdmin)
+	}
 
 	mux.Handle("GET /api/v1/admin/dashboard", adm(h.dashboard))
 	mux.Handle("GET /api/v1/admin/instructors/pending", adm(h.pendingInstructors))
@@ -26,6 +28,7 @@ func Register(mux *http.ServeMux, guard middleware.Guard, svc *Service) {
 	mux.Handle("POST /api/v1/admin/users/{id}/suspend", adm(h.suspend))
 	mux.Handle("GET /api/v1/admin/payments", adm(h.listPayments))
 	mux.Handle("POST /api/v1/admin/payments/{id}/refund", adm(h.refund))
+	mux.Handle("GET /api/v1/admin/audit-logs", adm(h.listAudit))
 }
 
 func adminID(r *http.Request) int64 {
@@ -208,4 +211,17 @@ func (h *Handler) approveInstructor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"status": "verified", "instructor_id": id})
+}
+
+func (h *Handler) listAudit(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := httpx.QueryInt(r, "limit", 50, 1, 200)
+	page := httpx.QueryInt(r, "page", 1, 1, 100000)
+	out, err := h.svc.ListAudit(AuditFilter{Action: q.Get("action"), ActorID: httpx.QueryInt(r, "actor_id", 0, 0, 1<<30),
+		Limit: limit, Offset: (page - 1) * limit})
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
 }
