@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	accessTTL  = time.Hour
+	accessTTL  = 15 * time.Minute
 	refreshTTL = 30 * 24 * time.Hour
 )
 
@@ -24,19 +24,25 @@ var (
 type Service struct {
 	repo   *Repository
 	secret string
+	notify ResetNotifier
 }
 
 func NewService(repo *Repository, secret string) *Service {
 	return &Service{repo: repo, secret: secret}
 }
 
-func (s *Service) tokens(u userRow) (AuthTokenResponse, error) {
+// tokens issues a short-lived access JWT and an opaque refresh token. Only the
+// SHA-256 hash of the refresh token is stored, in the given rotation family.
+func (s *Service) tokens(u userRow, family string, meta clientMeta) (AuthTokenResponse, error) {
 	access, err := security.IssueToken(s.secret, u.ID, u.Role, "access", accessTTL)
 	if err != nil {
 		return AuthTokenResponse{}, err
 	}
-	refresh, err := security.IssueToken(s.secret, u.ID, u.Role, "refresh", refreshTTL)
+	refresh, err := security.RandomToken(32)
 	if err != nil {
+		return AuthTokenResponse{}, err
+	}
+	if err := s.repo.CreateRefresh(u.ID, hashToken(refresh), family, time.Now().UTC().Add(refreshTTL), meta); err != nil {
 		return AuthTokenResponse{}, err
 	}
 	return AuthTokenResponse{AccessToken: access, RefreshToken: refresh, User: toUserResponse(u.User)}, nil
@@ -59,7 +65,11 @@ func (s *Service) Login(req LoginRequest) (AuthTokenResponse, error) {
 		return AuthTokenResponse{}, ErrAccountInactive
 	}
 	s.repo.TouchLogin(u.ID)
-	return s.tokens(u)
+	family, err := newUUID()
+	if err != nil {
+		return AuthTokenResponse{}, err
+	}
+	return s.tokens(u, family, req.meta)
 }
 
 func (s *Service) Register(req RegisterRequest) (AuthTokenResponse, error) {
@@ -99,7 +109,11 @@ func (s *Service) Register(req RegisterRequest) (AuthTokenResponse, error) {
 	if err != nil {
 		return AuthTokenResponse{}, err
 	}
-	return s.tokens(u)
+	family, err := newUUID()
+	if err != nil {
+		return AuthTokenResponse{}, err
+	}
+	return s.tokens(u, family, req.meta)
 }
 
 func (s *Service) Me(id int64) (User, error) {
@@ -121,18 +135,4 @@ func (s *Service) UpdateMe(id int64, req UpdateProfileRequest) (User, error) {
 		return User{}, err
 	}
 	return s.Me(id)
-}
-
-// Refresh exchanges a valid refresh token for a fresh token pair.
-// NOTE: tokens are stateless (no rotation/revocation yet) — Phase 5 item.
-func (s *Service) Refresh(refreshToken string) (AuthTokenResponse, error) {
-	claims, err := security.ParseToken(s.secret, refreshToken, "refresh")
-	if err != nil {
-		return AuthTokenResponse{}, ErrInvalidCredentials
-	}
-	u, err := s.repo.ByID(claims.Sub)
-	if err != nil || u.Status != "active" {
-		return AuthTokenResponse{}, ErrInvalidCredentials
-	}
-	return s.tokens(u)
 }
