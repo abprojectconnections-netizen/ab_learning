@@ -20,6 +20,7 @@ const (
 	RoleCorpManager = "CORP_MANAGER"
 	RoleEmployer    = "EMPLOYER"
 	RoleAdmin       = "ADMIN"
+	RoleSuperAdmin  = "SUPER_ADMIN"
 )
 
 type Principal struct {
