@@ -194,11 +194,11 @@ func TestCheckoutCreatesPendingOrderAtServerSidePrices(t *testing.T) {
 		WillReturnRows(courseRows([3]float64{10, 500, 400}, [3]float64{11, 300, 300}))
 	mock.ExpectQuery("SELECT COUNT").WithArgs(int64(1), int64(10), int64(11)).
 		WillReturnRows(sqlmock.NewRows([]string{"n"}).AddRow(0))
-	// subtotal 8.00, discount 1.00, total 7.00 — computed from the database, not the request.
-	mock.ExpectExec("INSERT INTO orders").WithArgs(sqlmock.AnyArg(), int64(1), 8.0, 1.0, 7.0).WillReturnResult(sqlmock.NewResult(50, 1))
-	mock.ExpectExec("INSERT INTO order_items").WithArgs(int64(50), int64(10), 4.0).WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec("INSERT INTO order_items").WithArgs(int64(50), int64(11), 3.0).WillReturnResult(sqlmock.NewResult(2, 1))
-	mock.ExpectExec("INSERT INTO payments").WithArgs(int64(50), "card", "sbx_ref", 7.0).WillReturnResult(sqlmock.NewResult(60, 1))
+	// subtotal 800.00, discount 100.00, total 700.00 (baht) — computed from the database, not the request.
+	mock.ExpectExec("INSERT INTO orders").WithArgs(sqlmock.AnyArg(), int64(1), 800.0, 100.0, 700.0).WillReturnResult(sqlmock.NewResult(50, 1))
+	mock.ExpectExec("INSERT INTO order_items").WithArgs(int64(50), int64(10), 400.0).WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("INSERT INTO order_items").WithArgs(int64(50), int64(11), 300.0).WillReturnResult(sqlmock.NewResult(2, 1))
+	mock.ExpectExec("INSERT INTO payments").WithArgs(int64(50), "card", "sbx_ref", 700.0).WillReturnResult(sqlmock.NewResult(60, 1))
 	mock.ExpectExec("UPDATE idempotency_keys SET response_status").WithArgs(sqlmock.AnyArg(), int64(1), endpt, hashHex(idemKey)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -207,7 +207,7 @@ func TestCheckoutCreatesPendingOrderAtServerSidePrices(t *testing.T) {
 	if err != nil || replayed {
 		t.Fatalf("Checkout = %+v, replayed=%v, %v", out, replayed, err)
 	}
-	if out.OrderID != 50 || out.PaymentID != 60 || out.Amount != 7.0 || out.Status != "pending" || !out.Sandbox || out.Currency != "THB" {
+	if out.OrderID != 50 || out.PaymentID != 60 || out.Amount != 700.0 || out.Status != "pending" || !out.Sandbox || out.Currency != "THB" {
 		t.Fatalf("unexpected result: %+v", out)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
