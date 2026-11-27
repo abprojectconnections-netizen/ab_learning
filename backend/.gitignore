@@ -11,4 +11,5 @@ env/*.env
 uploads/
 uploads-test/
 !.env.example
+backups/*.sql
 backups/*.sql.gz
