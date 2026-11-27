@@ -62,6 +62,11 @@ jobs:
         run: |
           go test ./... -count=1 -coverprofile=coverage.out
           go tool cover -func=coverage.out | tail -1
+      - name: Show unit test failures as an annotation
+        if: failure()
+        run: |
+          out="$(go test ./... -count=1 2>&1 | grep -vE '^(ok|\?)' | head -120 | awk 'BEGIN{ORS="%0A"} {print}')"
+          echo "::error title=go test failures::${out}"
       - name: Boot API on real MySQL and run smoke test
         run: |
           export JWT_SECRET="$(openssl rand -hex 32)"
