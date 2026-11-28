@@ -79,5 +79,10 @@ expect "moderating again is 404" "$(call DELETE /admin/reviews/$RID "$ADM")" 404
 call GET '/admin/audit-logs?action=review.delete' "$ADM" >/dev/null
 atleast "moderation was audited" "$(jq_ 'len(d)')" 1
 
+echo "payment reconciliation..."
+expect "learner cannot reconcile" "$(call GET /admin/payments/reconciliation "$L1")" 403
+expect "admin reconciles" "$(call GET /admin/payments/reconciliation "$ADM")" 200
+expect "report has an issues list" "$(jq_ "isinstance(d['issues'], list) and d['total'] == len(d['issues'])")" True
+
 rm -f "$BODY"
 echo "api flow OK"

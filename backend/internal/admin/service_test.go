@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
@@ -70,5 +71,43 @@ func TestModerationDefaultsToPendingReview(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestReconcileMapsIssuesAndCounts(t *testing.T) {
+	db, mock, _ := sqlmock.New()
+	defer db.Close()
+	mock.ExpectQuery("UNION ALL").WithArgs(0.005, 0.005, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"issue", "payment_id", "order_code", "detail"}).
+			AddRow(IssuePaidOrderNoPayment, nil, "ORD-1", "no payment").
+			AddRow(IssueStalePending, int64(7), "ORD-2", "old").
+			AddRow(IssueStalePending, int64(8), "ORD-3", "old").
+			AddRow(IssueWebhookEventError, nil, nil, nil))
+	out, err := NewRepository(db).Reconcile(time.Now())
+	if err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if out.Total != 4 || out.ByType[IssueStalePending] != 2 || out.ByType[IssuePaidOrderNoPayment] != 1 || out.Truncated {
+		t.Fatalf("unexpected report: %+v", out)
+	}
+	if out.Issues[0].PaymentID != nil || out.Issues[1].PaymentID == nil || *out.Issues[1].PaymentID != 7 {
+		t.Fatalf("payment ids mapped wrongly: %+v", out.Issues)
+	}
+	if out.Issues[3].OrderCode != "" || out.Issues[3].Detail != "" {
+		t.Fatalf("NULL columns must map to empty strings: %+v", out.Issues[3])
+	}
+}
+
+func TestReconcileReportsTruncation(t *testing.T) {
+	db, mock, _ := sqlmock.New()
+	defer db.Close()
+	rows := sqlmock.NewRows([]string{"issue", "payment_id", "order_code", "detail"})
+	for i := 0; i <= reconciliationMaxIssues; i++ {
+		rows.AddRow(IssueStalePending, int64(i+1), "ORD", "old")
+	}
+	mock.ExpectQuery("UNION ALL").WillReturnRows(rows)
+	out, err := NewRepository(db).Reconcile(time.Now())
+	if err != nil || !out.Truncated || out.Total != reconciliationMaxIssues {
+		t.Fatalf("Reconcile = total %d truncated %v err %v", out.Total, out.Truncated, err)
 	}
 }

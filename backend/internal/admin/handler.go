@@ -27,6 +27,7 @@ func Register(mux *http.ServeMux, guard middleware.Guard, svc *Service) {
 	mux.Handle("PUT /api/v1/admin/users/{id}", adm(h.updateUser))
 	mux.Handle("POST /api/v1/admin/users/{id}/suspend", adm(h.suspend))
 	mux.Handle("GET /api/v1/admin/payments", adm(h.listPayments))
+	mux.Handle("GET /api/v1/admin/payments/reconciliation", adm(h.reconciliation))
 	mux.Handle("POST /api/v1/admin/payments/{id}/refund", adm(h.refund))
 	mux.Handle("GET /api/v1/admin/audit-logs", adm(h.listAudit))
 }
@@ -219,6 +220,15 @@ func (h *Handler) listAudit(w http.ResponseWriter, r *http.Request) {
 	page := httpx.QueryInt(r, "page", 1, 1, 100000)
 	out, err := h.svc.ListAudit(AuditFilter{Action: q.Get("action"), ActorID: httpx.QueryInt(r, "actor_id", 0, 0, 1<<30),
 		Limit: limit, Offset: (page - 1) * limit})
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) reconciliation(w http.ResponseWriter, r *http.Request) {
+	out, err := h.svc.Reconciliation()
 	if err != nil {
 		fail(w, err)
 		return
