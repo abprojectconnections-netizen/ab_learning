@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import 'core/config/api_config.dart';
 import 'core/config/app_config.dart';
 import 'core/config/firebase_options.dart';
 import 'app.dart';
@@ -36,9 +37,19 @@ Future<void> main() async {
   // --------------------------------------------------
 
   try {
-    await Firebase.initializeApp(
-      options: FirebaseOptionsFromEnvironment.currentPlatform,
-    );
+    // With API_BASE_URL set the app talks to the Go API, so a missing Firebase
+    // configuration must not stop startup. Features not yet moved to REST keep
+    // using Firebase and report their own errors if it is unavailable.
+    var firebaseReady = true;
+    try {
+      await Firebase.initializeApp(
+        options: FirebaseOptionsFromEnvironment.currentPlatform,
+      );
+    } catch (error) {
+      if (kApiBaseUrl.isEmpty) rethrow;
+      firebaseReady = false;
+      debugPrint('Firebase unavailable, continuing in REST mode: $error');
+    }
 
     // ------------------------------------------------
     // 3. Firebase Emulator Configuration
@@ -49,7 +60,7 @@ Future<void> main() async {
       defaultValue: false,
     );
 
-    if (useEmulators) {
+    if (firebaseReady && useEmulators) {
       const emulatorHost = String.fromEnvironment(
         'FIREBASE_EMULATOR_HOST',
         defaultValue: '127.0.0.1',

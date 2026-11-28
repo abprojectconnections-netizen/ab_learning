@@ -3,42 +3,13 @@ import 'dart:convert';
 import 'package:ab_learning/core/network/api_client.dart';
 import 'package:ab_learning/core/network/api_exception.dart';
 import 'package:ab_learning/core/network/api_providers.dart';
-import 'package:ab_learning/core/storage/token_storage.dart';
 import 'package:ab_learning/features/auth/data/rest_auth_repository.dart';
 import 'package:ab_learning/features/auth/domain/user_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-class FakeTokenStorage implements TokenStorage {
-  String? access;
-  String? refresh;
-
-  @override
-  Future<String?> readAccessToken() async => access;
-
-  @override
-  Future<String?> readRefreshToken() async => refresh;
-
-  @override
-  Future<void> saveTokens({
-    required String accessToken,
-    required String refreshToken,
-  }) async {
-    access = accessToken;
-    refresh = refreshToken;
-  }
-
-  @override
-  Future<void> clear() async {
-    access = null;
-    refresh = null;
-  }
-
-  @override
-  Future<bool> hasSession() async =>
-      (access?.isNotEmpty ?? false) || (refresh?.isNotEmpty ?? false);
-}
+import 'support/fake_token_storage.dart';
 
 http.Response jsonResponse(Object body, [int status = 200]) => http.Response(
       jsonEncode(body),

@@ -4,9 +4,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import '../../data/course_repository.dart';
 import '../../data/firebase_course_repository.dart';
+import '../../data/rest_course_repository.dart';
+import '../../../../core/config/api_config.dart';
+import '../../../../core/network/api_providers.dart';
 import '../../domain/course_model.dart';
 
+/// Go + MySQL API when API_BASE_URL is defined, Firebase otherwise.
 final courseRepositoryProvider = Provider<CourseRepository>((ref) {
+  if (ref.watch(useRestBackendProvider)) {
+    return RestCourseRepository(ref.watch(apiClientProvider));
+  }
   return FirebaseCourseRepository(
     firestore: FirebaseFirestore.instance,
     auth: fb.FirebaseAuth.instance,
