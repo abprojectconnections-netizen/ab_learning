@@ -38,6 +38,8 @@ services:
       APP_ENV: ${APP_ENV:-dev}
       DB_DSN: "${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/${MYSQL_DATABASE}?parseTime=true&charset=utf8mb4&loc=UTC"
       JWT_SECRET: ${JWT_SECRET:?run "make env" to create .env}
+      PAYMENT_MODE: ${PAYMENT_MODE:-sandbox}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
       SEED_DEV: ${SEED_DEV:-false}
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:?}
       RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-120}

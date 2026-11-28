@@ -20,6 +20,10 @@ type Config struct {
 	CORSAllowOrigin    string
 	RateLimitRequests  int
 	RateLimitWindowSec int64
+	// PaymentMode must be "sandbox"; live payments need explicit authorization
+	// and a separate gateway implementation.
+	PaymentMode          string
+	PaymentWebhookSecret string
 }
 
 func Load() Config {
@@ -31,17 +35,19 @@ func Load() Config {
 		dsnDefault = ""
 	}
 	c := Config{
-		Env:                env,
-		Port:               get("PORT", "8080"),
-		DBDSN:              get("DB_DSN", dsnDefault),
-		JWTSecret:          os.Getenv("JWT_SECRET"),
-		UploadDir:          get("UPLOAD_DIR", "./uploads"),
-		MaxVideoMB:         getInt("MAX_VIDEO_MB", 500),
-		MigrationsDir:      get("MIGRATIONS_DIR", "db/migrations"),
-		SeedDev:            get("SEED_DEV", "false") == "true",
-		CORSAllowOrigin:    get("CORS_ALLOW_ORIGIN", corsDefault),
-		RateLimitRequests:  int(getInt("RATE_LIMIT_REQUESTS", 120)),
-		RateLimitWindowSec: getInt("RATE_LIMIT_WINDOW_SECONDS", 60),
+		Env:                  env,
+		Port:                 get("PORT", "8080"),
+		DBDSN:                get("DB_DSN", dsnDefault),
+		JWTSecret:            os.Getenv("JWT_SECRET"),
+		UploadDir:            get("UPLOAD_DIR", "./uploads"),
+		MaxVideoMB:           getInt("MAX_VIDEO_MB", 500),
+		MigrationsDir:        get("MIGRATIONS_DIR", "db/migrations"),
+		SeedDev:              get("SEED_DEV", "false") == "true",
+		CORSAllowOrigin:      get("CORS_ALLOW_ORIGIN", corsDefault),
+		RateLimitRequests:    int(getInt("RATE_LIMIT_REQUESTS", 120)),
+		RateLimitWindowSec:   getInt("RATE_LIMIT_WINDOW_SECONDS", 60),
+		PaymentMode:          get("PAYMENT_MODE", "sandbox"),
+		PaymentWebhookSecret: os.Getenv("PAYMENT_WEBHOOK_SECRET"),
 	}
 	if c.JWTSecret == "" {
 		if c.Env == "production" || c.Env == "staging" {
@@ -63,8 +69,14 @@ func (c Config) Validate() error {
 	if c.RateLimitRequests <= 0 || c.RateLimitWindowSec <= 0 {
 		return fmt.Errorf("rate limit requests and window must be positive")
 	}
+	if c.PaymentMode != "sandbox" {
+		return fmt.Errorf("PAYMENT_MODE must be \"sandbox\": live payments are not enabled")
+	}
 	if c.Env != "staging" && c.Env != "production" {
 		return nil
+	}
+	if len(c.PaymentWebhookSecret) < 32 {
+		return fmt.Errorf("PAYMENT_WEBHOOK_SECRET must contain at least 32 characters in staging and production")
 	}
 	if len(c.JWTSecret) < 32 {
 		return fmt.Errorf("JWT_SECRET must contain at least 32 characters in staging and production")

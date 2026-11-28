@@ -25,6 +25,7 @@ import (
 	"github.com/ablearning/api/internal/middleware"
 	"github.com/ablearning/api/internal/notification"
 	"github.com/ablearning/api/internal/order"
+	"github.com/ablearning/api/internal/payment"
 	"github.com/ablearning/api/internal/platform"
 	"github.com/ablearning/api/internal/quiz"
 	"github.com/ablearning/api/internal/review"
@@ -88,6 +89,14 @@ func main() {
 	notification.Register(mux, guard, notification.NewRepository(db))
 	review.Register(mux, guard, review.NewRepository(db))
 	order.Register(mux, guard, order.NewRepository(db))
+	if cfg.PaymentWebhookSecret == "" {
+		log.Printf("payments: PAYMENT_WEBHOOK_SECRET not set; checkout and payment webhooks are disabled")
+	} else if gw, err := payment.NewSandboxGateway(cfg.PaymentMode, cfg.PaymentWebhookSecret); err != nil {
+		log.Fatalf("payments: %v", err)
+	} else {
+		payment.Register(mux, guard, payment.NewService(payment.NewRepository(db), gw))
+		log.Printf("payments: SANDBOX mode (no real money moves)")
+	}
 	courses.Register(mux, courses.NewService(courses.NewRepository(db)))
 	home.NewHandler(home.NewService(home.NewRepository(db))).RegisterRoutes(mux, protected)
 	learning.NewHandler(learning.NewService(learningRepo, learningRepo, certificateRepo)).RegisterRoutes(mux, protected)
