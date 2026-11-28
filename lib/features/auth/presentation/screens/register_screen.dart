@@ -15,6 +15,8 @@ class RegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+  final _firstCtrl = TextEditingController();
+  final _lastCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
@@ -23,6 +25,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String? _error;
 
   Future<void> _submit() async {
+    if (_firstCtrl.text.trim().isEmpty || _lastCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'กรุณากรอกชื่อและนามสกุล');
+      return;
+    }
     if (_passCtrl.text != _confirmCtrl.text) {
       setState(() => _error = 'รหัสผ่านไม่ตรงกัน');
       return;
@@ -33,13 +39,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     setState(() { _loading = true; _error = null; });
     try {
-      await ref.read(authRepositoryProvider).register(email: _emailCtrl.text, password: _passCtrl.text);
+      await ref.read(authRepositoryProvider).register(
+            email: _emailCtrl.text,
+            password: _passCtrl.text,
+            firstName: _firstCtrl.text,
+            lastName: _lastCtrl.text,
+          );
       // if (mounted) context.go(RoutePaths.home);
     } catch (e) {
       setState(() => _error = 'สมัครสมาชิกไม่สำเร็จ: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _firstCtrl.dispose();
+    _lastCtrl.dispose();
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -54,6 +75,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                AppFormField(label: 'ชื่อ', controller: _firstCtrl),
+                const SizedBox(height: AppSpacing.md),
+                AppFormField(label: 'นามสกุล', controller: _lastCtrl),
+                const SizedBox(height: AppSpacing.md),
                 AppFormField(label: 'อีเมล', controller: _emailCtrl, type: AppFormFieldType.email),
                 const SizedBox(height: AppSpacing.md),
                 AppFormField(label: 'รหัสผ่าน', controller: _passCtrl, type: AppFormFieldType.password),
