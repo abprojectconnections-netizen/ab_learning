@@ -79,6 +79,11 @@ expect "moderating again is 404" "$(call DELETE /admin/reviews/$RID "$ADM")" 404
 call GET '/admin/audit-logs?action=review.delete' "$ADM" >/dev/null
 atleast "moderation was audited" "$(jq_ 'len(d)')" 1
 
+echo "payment reconciliation..."
+expect "learner cannot reconcile" "$(call GET /admin/payments/reconciliation "$L1")" 403
+expect "admin reconciles" "$(call GET /admin/payments/reconciliation "$ADM")" 200
+expect "report has an issues list" "$(jq_ "isinstance(d['issues'], list) and d['total'] == len(d['issues'])")" True
+
 echo "public curriculum..."
 expect "curriculum is public" "$(call GET /courses/$COURSE_A/curriculum)" 200
 expect "paid lessons do not leak video urls" "$(jq_ "all(l['is_preview'] or not l['video_url'] for s in d for l in s['lessons'])")" True
