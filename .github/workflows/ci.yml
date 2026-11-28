@@ -66,7 +66,12 @@ jobs:
       - name: Unit tests with coverage
         run: |
           go test ./... -count=1 -coverprofile=coverage.out
-          go tool cover -func=coverage.out | tail -1
+          sh scripts/coverage-gate.sh coverage.out
+      - name: Show unit test failures as an annotation
+        if: failure()
+        run: |
+          out="$(go test ./... -count=1 2>&1 | grep -vE '^(ok|\?)' | head -120 | awk 'BEGIN{ORS="%0A"} {print}')"
+          echo "::error title=go test failures::${out}"
       - name: Boot API on real MySQL and run smoke test
         run: |
           export JWT_SECRET="$(openssl rand -hex 32)"
@@ -171,6 +176,24 @@ jobs:
           BASE_URL=http://127.0.0.1:8084/api/v1 COURSE_A="$(cid 01)" COURSE_B="$(cid 02)" COURSE_X="$(cid 10)" \
             sh scripts/api-flow.sh
           kill "$(cat api-flow.pid)"
+      - name: Sandbox payment flow (checkout, idempotency, webhook signature, refund)
+        run: |
+          export JWT_SECRET="$(openssl rand -hex 32)"
+          export PAYMENT_WEBHOOK_SECRET="$(openssl rand -hex 32)"
+          PAYMENT_MODE=sandbox RATE_LIMIT_REQUESTS=2000 PORT=8085 ./bin/api > api-pay.log 2>&1 &
+          echo $! > api-pay.pid
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8085/api/v1/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          grep -q "payments: SANDBOX mode" api-pay.log
+          paid() { mysql -h 127.0.0.1 -uroot -N ab_test -e "SELECT id FROM courses WHERE status='published' AND COALESCE(discount_price,price)>0 ORDER BY id LIMIT 1 OFFSET $1"; }
+          BASE_URL=http://127.0.0.1:8085/api/v1 COURSE_A="$(paid 0)" COURSE_B="$(paid 1)" sh scripts/payment-flow.sh
+          kill "$(cat api-pay.pid)"
+          # Live mode must make the API refuse to start.
+          if PAYMENT_MODE=live PORT=8086 ./bin/api > api-live.log 2>&1; then
+            echo "API started with PAYMENT_MODE=live" >&2; exit 1
+          fi
       - name: Seed refuses staging and remote hosts
         run: |
           if APP_ENV=staging JWT_SECRET="$(openssl rand -hex 32)" CORS_ALLOW_ORIGIN=https://example.test ./bin/seed; then
@@ -184,7 +207,7 @@ jobs:
         run: docker build -t ab-api:ci .
       - name: API logs on failure
         if: failure()
-        run: tail -n 80 api.log api2.log api-auth.log api-flow.log 2>/dev/null || true
+        run: tail -n 80 api.log api2.log api-auth.log api-flow.log api-pay.log 2>/dev/null || true
       - name: Stop API
         if: always()
         run: kill "$(cat api.pid)" 2>/dev/null || true

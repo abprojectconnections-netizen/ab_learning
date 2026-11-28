@@ -57,3 +57,32 @@ func TestGetReturnsNotFoundForMissingCourse(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPublicCurriculumOnlyExposesPreviewVideoURLs(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mock.ExpectQuery("FROM course_sections s").WithArgs(int64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"sid", "stitle", "lid", "ltitle", "ltype", "dur", "url", "preview"}).
+			AddRow(int64(1), "Basics", int64(10), "Free intro", "video", 60, "/uploads/videos/free.mp4", true).
+			AddRow(int64(1), "Basics", int64(11), "Paid lesson", "video", 120, "/uploads/videos/paid.mp4", false).
+			AddRow(int64(2), "Empty", nil, nil, nil, nil, nil, nil))
+
+	sections, err := NewRepository(db).Curriculum(5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sections) != 2 || len(sections[0].Lessons) != 2 || len(sections[1].Lessons) != 0 {
+		t.Fatalf("unexpected sections: %#v", sections)
+	}
+	free, paid := sections[0].Lessons[0], sections[0].Lessons[1]
+	if free.VideoURL != "/uploads/videos/free.mp4" || !free.IsPreview {
+		t.Errorf("preview lesson must keep its URL: %#v", free)
+	}
+	if paid.VideoURL != "" || paid.IsPreview {
+		t.Errorf("non-preview lesson must not expose its URL: %#v", paid)
+	}
+}
