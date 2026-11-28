@@ -106,9 +106,16 @@ func (r *Repository) Curriculum(courseID int64) ([]Section, error) {
 			idx[sid] = i
 		}
 		if lid.Valid {
+			// The public curriculum is visible to everyone, so only free-preview
+			// lessons expose their media URL. Enrolled learners get full URLs
+			// from the learning API.
+			videoURL := ""
+			if preview.Bool {
+				videoURL = lurl.String
+			}
 			sections[i].Lessons = append(sections[i].Lessons, Lesson{
 				ID: lid.Int64, Title: ltitle.String, Type: ltype.String,
-				DurationSeconds: int(dur.Int64), VideoURL: lurl.String, IsPreview: preview.Bool,
+				DurationSeconds: int(dur.Int64), VideoURL: videoURL, IsPreview: preview.Bool,
 			})
 		}
 	}
