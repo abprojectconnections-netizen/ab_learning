@@ -20,6 +20,11 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-pub --no-fatal-infos
       - run: flutter test --no-pub
+      - name: Show Flutter failures as an annotation
+        if: failure()
+        run: |
+          out="$( (flutter analyze --no-pub --no-fatal-infos 2>&1 | grep -E ' (error|warning) ' | head -60; flutter test --no-pub 2>&1 | grep -E 'Error|Exception|FAILED|Expected|Actual|\.dart:[0-9]+' | head -60) | awk 'BEGIN{ORS="%0A"} {print}')"
+          echo "::error title=flutter failures::${out}"
 
   backend:
     runs-on: ubuntu-latest

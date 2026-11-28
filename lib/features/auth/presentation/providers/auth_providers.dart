@@ -4,7 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/auth_repository.dart';
 import '../../data/firebase_auth_repository.dart';
+import '../../data/rest_auth_repository.dart';
 import '../../domain/user_model.dart';
+import '../../../../core/config/api_config.dart';
+import '../../../../core/network/api_providers.dart';
 import '../../../../core/router/role_guard.dart';
 
 UserRole guardRoleFor(UserRoleType role) => switch (role) {
@@ -17,7 +20,17 @@ UserRole guardRoleFor(UserRoleType role) => switch (role) {
       UserRoleType.superAdmin => UserRole.superAdmin,
     };
 
+/// Go + MySQL API when API_BASE_URL is defined, Firebase otherwise.
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  if (ref.watch(useRestBackendProvider)) {
+    final repo = RestAuthRepository(
+      ref.watch(apiClientProvider),
+      ref.watch(tokenStorageProvider),
+      sessionExpired: ref.watch(sessionEventsProvider).expired,
+    );
+    ref.onDispose(repo.dispose);
+    return repo;
+  }
   return FirebaseAuthRepository(
       fb.FirebaseAuth.instance, FirebaseFirestore.instance);
 });

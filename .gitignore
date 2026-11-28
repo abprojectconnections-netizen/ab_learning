@@ -72,7 +72,7 @@ backend/tmp/
 backend/uploads/
 backend/logs/
 # Docker local data
-data/
+/data/
 docker-data/
 
 # local Firebase emulator export

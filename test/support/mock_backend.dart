@@ -101,8 +101,12 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> register(
-      {required String email, required String password}) async {
+  Future<AppUser> register({
+    required String email,
+    required String password,
+    String? firstName,
+    String? lastName,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 400));
     _validate(email.trim(), password);
     _current = _fakeUser(email, forceLearner: true);
