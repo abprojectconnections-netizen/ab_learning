@@ -34,14 +34,20 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> register(
-      {required String email, required String password}) async {
+  Future<AppUser> register({
+    required String email,
+    required String password,
+    String? firstName,
+    String? lastName,
+  }) async {
     final cred = await _auth.createUserWithEmailAndPassword(
         email: email, password: password);
     final user = cred.user!;
     await _firestore.collection('users').doc(user.uid).set({
       'uid': user.uid,
-      'displayName': user.displayName ?? email.split('@').first,
+      'displayName': _displayName(firstName, lastName) ??
+          user.displayName ??
+          email.split('@').first,
       'email': email.trim(),
       'role': 'learner',
       'status': 'active',
@@ -49,6 +55,11 @@ class FirebaseAuthRepository implements AuthRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     return AppUser(uid: user.uid, email: email, role: UserRoleType.learner);
+  }
+
+  static String? _displayName(String? first, String? last) {
+    final name = '${first ?? ''} ${last ?? ''}'.trim();
+    return name.isEmpty ? null : name;
   }
 
   @override

@@ -12,6 +12,7 @@ class ApiClient {
     required TokenStorage tokenStorage,
     http.Client? client,
     this.timeout = const Duration(seconds: 15),
+    this.onSessionExpired,
   })  : _baseUri = Uri.parse(baseUrl.trim().replaceFirst(RegExp(r'/+$'), '')),
         _tokenStorage = tokenStorage,
         _client = client ?? http.Client() {
@@ -26,6 +27,10 @@ class ApiClient {
   final TokenStorage _tokenStorage;
   final http.Client _client;
   final Duration timeout;
+
+  /// Called when a request got 401 and the refresh token could not renew the
+  /// session (tokens are cleared first).
+  final void Function()? onSessionExpired;
 
   Future<bool>? _refreshing;
 
@@ -125,6 +130,8 @@ class ApiClient {
           body: body,
           authenticated: true,
         );
+      } else {
+        onSessionExpired?.call();
       }
     }
 
